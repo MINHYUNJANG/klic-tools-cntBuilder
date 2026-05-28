@@ -1,0 +1,23 @@
+﻿.box-04 {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	border-radius: 5px;
+	padding: clamp(16px, 2.5vw, 24px) clamp(20px, 3vw, 36px);
+	background: var(--body-bg);
+}
+
+.box-04-num {
+	color: var(--title-text, #fff);
+	font-size: var(--title-size, clamp(11px, 1.3vw, 13px));
+	font-weight: 700;
+	text-align: var(--title-align, center);
+}
+
+.box-04 p {
+	color: var(--body-text, #fff);
+	font-size: var(--body-size, clamp(13px, 1.5vw, 16px));
+	font-weight: 400;
+	text-align: var(--body-align, center);
+}

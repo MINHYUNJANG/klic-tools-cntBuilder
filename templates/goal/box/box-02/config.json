@@ -1,0 +1,9 @@
+{
+	"addDirection": "row",
+	"max": "5",
+	"_comment": "styleOptions hide 값: borderColor, backgroundColor, textColor",
+	"styleOptions": {
+		"title": { "hide": ["borderColor"] },
+		"body":  { "hide": ["borderColor"] }
+	}
+}

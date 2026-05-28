@@ -1,0 +1,31 @@
+﻿.box-16 {
+	display: flex;
+	align-items: center;
+	gap: clamp(8px, 1.2vw, 14px);
+	border-radius: 50px;
+	padding: clamp(8px, 1.2vw, 12px);
+	background: var(--body-bg);
+}
+
+.box-16-pill {
+	flex-shrink: 0;
+	border-radius: 50px;
+	padding: clamp(6px, 1vw, 10px) clamp(12px, 2vw, 20px);
+	background: var(--title-bg, #fff);
+}
+
+.box-16-pill span {
+	color: var(--title-text, #2b7fff);
+	font-size: var(--title-size, clamp(12px, 1.4vw, 15px));
+	font-weight: 700;
+	white-space: nowrap;
+	text-align: var(--title-align, center);
+}
+
+.box-16 p {
+	color: var(--body-text, #101010);
+	font-size: var(--body-size, clamp(12px, 1.4vw, 15px));
+	font-weight: 400;
+	word-break: keep-all;
+	text-align: var(--body-align, center);
+}

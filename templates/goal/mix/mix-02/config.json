@@ -1,0 +1,14 @@
+﻿{
+	"addDirection": "column",
+	"max": 1,
+	"defaultInnerType": "list-01",
+	"styleOptions": {
+		"body": {
+			"label": "諛곌꼍",
+			"fields": [
+				{ "key": "backgroundColor", "label": "諛곌꼍??, "default": "#ffffff" }
+			]
+		}
+	}
+}
+

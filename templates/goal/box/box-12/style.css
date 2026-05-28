@@ -1,0 +1,41 @@
+﻿.box-12-top {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	border: 2px solid var(--title-border, #3dc87e);
+	border-radius: 10px;
+	padding: clamp(14px, 2vw, 20px);
+	background: var(--title-bg, #fff);
+}
+
+.box-12-en {
+	color: var(--title-text, #35bf76);
+	font-size: clamp(16px, 2.2vw, 20px);
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.box-12-ko {
+	color: #626262;
+	font-size: clamp(12px, 1.4vw, 14px);
+	font-weight: 400;
+}
+
+.box-12-body {
+	margin-top: 8px;
+	border: 1.5px solid var(--body-border);
+	border-radius: 10px;
+	padding: clamp(16px, 2.5vw, 24px);
+	background: var(--body-bg);
+	text-align: center;
+}
+
+.box-12-body p {
+	color: var(--body-text, #626262);
+	font-size: var(--body-size, clamp(12px, 1.4vw, 15px));
+	font-weight: 400;
+	letter-spacing: -0.015em;
+	line-height: 1.6;
+	text-align: var(--body-align, center);
+}

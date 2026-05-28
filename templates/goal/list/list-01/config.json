@@ -1,0 +1,30 @@
+﻿{
+	"addDirection": "column",
+	"max": "3",
+	"styleOptions": {
+		"title": {
+			"label": "?レ옄",
+			"fields": [
+				{ "key": "backgroundColor", "label": "諛곌꼍", "default": "#0b67c2" },
+				{ "key": "textColor",       "label": "湲??, "default": "#ffffff" }
+			]
+		},
+		"body": {
+			"label": "蹂몃Ц",
+			"fields": [
+				{ "key": "borderColor",     "label": "??,   "default": "#d8e0ec" },
+				{ "key": "backgroundColor", "label": "諛곌꼍", "default": "#ffffff" },
+				{ "key": "textColor",       "label": "湲??, "default": "#182233" }
+			]
+		},
+		"tag": {
+			"label": "?쒓렇",
+			"cssClass": ".b28-row span",
+			"fields": [
+				{ "key": "backgroundColor", "label": "諛곌꼍", "default": "#eef5ff" },
+				{ "key": "textColor",       "label": "湲??, "default": "#0b67c2" }
+			]
+		}
+	}
+}
+

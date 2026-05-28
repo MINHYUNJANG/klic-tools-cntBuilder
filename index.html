@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>KLIC TOOLs - 교육목표 빌더</title>
+	<link rel="stylesheet" href="/css/fonts/Montserrat/fonts.css" media="all">
+	<link rel="stylesheet" href="/css/fonts/Pretendard/fonts.css" media="all">
+	<link rel="stylesheet" href="/css/fonts/RemixIcon_Fonts_v4.7.0/remixicon.css" media="all">
+	<link rel="stylesheet" href="/css/basic.css" media="all">
+	<link rel="stylesheet" href="/css/common.css" media="all">
+	<link rel="stylesheet" href="/css/goal_common.css" media="all">
+</head>
+<body class="goal-builder-page">
+	<div class="app-shell">
+		<div id="headerSentinel" class="header-sentinel"></div>
+		<header class="topbar">
+			<div class="topbar-brand">
+				<span class="topbar-logo" aria-hidden="true"></span>
+				<a class="topbar-title-link" href="./" aria-label="교육목표 빌더 홈">
+					<p class="eyebrow">Grid Builder</p>
+					<div class="title-row">
+						<strong>KLIC TOOLs</strong>
+						<span aria-hidden="true"></span>
+						<h1>교육목표 빌더</h1>
+					</div>
+				</a>
+			</div>
+			<div class="topbar-extra" id="topbarExtra"></div>
+			<div class="topbar-actions">
+				<span id="layoutStatus">0개 블록</span>
+				<span class="topbar-action-divider" aria-hidden="true"></span>
+				<div class="device-switcher" id="deviceSwitcher" aria-label="반응형 미리보기">
+					<button type="button" class="device-btn is-active" data-device="pc" title="PC (1024px 이상)">
+						<i class="ri-computer-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="device-btn" data-device="tablet" title="태블릿 (768–1023px)">
+						<i class="ri-tablet-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="device-btn" data-device="mobile" title="모바일 (380–767px)">
+						<i class="ri-cellphone-line" aria-hidden="true"></i>
+					</button>
+				</div>
+				<span class="topbar-action-divider" aria-hidden="true"></span>
+				<div class="canvas-size-control" id="canvasSizeControl" aria-label="캔버스 크기설정"></div>
+				<button type="button" class="ghost-button" id="clearCanvas">
+					<i class="ri-refresh-line" aria-hidden="true"></i>
+					캔버스 초기화
+				</button>
+				<button type="button" class="ghost-button markup-toggle" id="markupToggle" aria-expanded="false" aria-controls="markupPanel">
+					<i class="ri-code-s-slash-line" aria-hidden="true"></i>
+					마크업 보기
+				</button>
+				<button type="button" class="preview-button" id="previewToggle">
+					<i class="ri-eye-line" aria-hidden="true"></i>
+					미리보기
+				</button>
+			</div>
+			<div class="topbar-preview-actions">
+				<button type="button" class="primary-button" id="savePreviewImage">
+					<i class="ri-image-line" aria-hidden="true"></i>
+					이미지 저장
+				</button>
+				<button type="button" class="ghost-button" id="previewMarkupOpen">
+					<i class="ri-code-s-slash-line" aria-hidden="true"></i>
+					마크업 보기
+				</button>
+			</div>
+			<button type="button" class="preview-return-button" id="previewReturn">
+				<i class="ri-arrow-left-line" aria-hidden="true"></i>
+				캔버스로 돌아가기
+			</button>
+		</header>
+
+		<main class="builder" id="builderMain">
+			<aside class="sidebar" aria-label="디자인 블록 도구">
+				<aside class="deco-studio-drawer" id="decoStudioDrawer" aria-label="꾸밈 스튜디오">
+					<div class="deco-studio-head">
+						<strong>꾸밈 스튜디오</strong>
+						<button type="button" class="ghost-button deco-studio-close" id="decoStudioClose" aria-label="꾸밈 스튜디오 닫기">
+							<i class="ri-close-line" aria-hidden="true"></i>
+						</button>
+					</div>
+					<div class="sidebar-tab-panel" id="panelDecoration">
+						<div class="filter-scroll-shell">
+							<div class="deco-filters" id="decoFilters"></div>
+						</div>
+						<div class="component-list" id="decorationPanel"></div>
+						<div class="deco-upload-area" id="decoUploadArea"></div>
+					</div>
+				</aside>
+				<section class="tool-section">
+					<!-- 메인 탭 -->
+					<div class="sidebar-tabs">
+						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="templates">디자인 템플릿</button>
+						<button type="button" class="sidebar-tab-btn is-active" data-sidebar-tab="blocks">디자인 블록</button>
+						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="custom">디자인 커스텀</button>
+					</div>
+
+					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelTemplates">
+						<p class="template-empty">준비중입니다.</p>
+					</div>
+
+					<!-- 디자인 블록 패널 -->
+					<div class="sidebar-tab-panel" id="panelBlocks">
+						<div class="filter-scroll-shell">
+							<div class="component-filters" aria-label="디자인 블록 필터">
+								<button type="button" class="is-active" data-template-filter="all">전체</button>
+								<button type="button" data-template-filter="box">박스타입</button>
+								<button type="button" data-template-filter="list">리스트타입</button>
+								<button type="button" data-template-filter="title-vertical">세로 타이틀</button>
+								<button type="button" data-template-filter="title-horizontal">가로 타이틀</button>
+								<button type="button" data-template-filter="divider">연결/구분선</button>
+								<button type="button" data-template-filter="mix">혼합타입</button>
+								<button type="button" data-template-filter="title-list">타이틀+목록</button>
+							</div>
+						</div>
+						<div class="component-list" id="componentList" aria-label="드래그 가능한 디자인 블록">
+							<p class="template-loading">
+								<span class="template-loading-spinner" aria-hidden="true"></span>
+								템플릿을 불러오는 중입니다.
+							</p>
+						</div>
+					</div>
+
+					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelCustom">
+						<p class="template-empty">준비중입니다.</p>
+					</div>
+
+				</section>
+			</aside>
+
+			<section class="workspace" aria-label="서브콘텐츠 작업 영역">
+				<button type="button" class="deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기">
+					<i class="ri-sparkling-2-line" aria-hidden="true"></i>
+				</button>
+				<div class="canvas-wrapper" id="canvasWrapper">
+					<div class="canvas-guide" aria-hidden="true"></div>
+					<div class="canvas-grid" id="canvasGrid" aria-label="디자인 블록 배열 영역"></div>
+					<div class="overlay-layer" id="overlayLayer" aria-hidden="true"></div>
+				</div>
+			</section>
+
+			<div class="right-col">
+				<aside class="canvas-panel" id="canvasPanel" aria-label="캔버스 설정">
+				</aside>
+				<aside class="options-panel" id="optionsPanel" aria-label="스타일 옵션">
+					<div class="options-panel-empty">
+						<i class="ri-cursor-line" aria-hidden="true"></i>
+						<p>항목을 클릭하면<br>스타일을 편집할 수 있습니다.</p>
+					</div>
+				</aside>
+			</div>
+
+		</main>
+
+	</div>
+
+	<aside class="markup-panel" id="markupPanel" role="dialog" aria-modal="true" aria-label="생성된 마크업">
+		<div class="markup-backdrop" id="markupBackdrop"></div>
+		<div class="markup-panel-inner">
+			<div class="markup-head">
+				<div>
+					<h2>마크업</h2>
+				</div>
+				<div class="markup-head-actions">
+					<button type="button" class="primary-button copy-markup-button" id="copyMarkup">
+						<i class="ri-file-copy-line" aria-hidden="true"></i>
+						복사
+					</button>
+					<button type="button" class="ghost-button markup-close-btn" id="markupClose" aria-label="닫기">
+						<i class="ri-close-line" aria-hidden="true"></i>
+					</button>
+				</div>
+			</div>
+			<textarea id="markupOutput" spellcheck="false" aria-label="생성된 HTML 마크업"></textarea>
+			<p class="copy-state" id="copyState" aria-live="polite"></p>
+		</div>
+	</aside>
+
+	<div class="icon-drawer" id="iconDrawer">
+		<div class="icon-drawer-backdrop" id="iconDrawerBackdrop"></div>
+		<div class="icon-drawer-panel">
+			<div class="icon-drawer-head">
+				<strong>아이콘 선택</strong>
+				<button type="button" class="ghost-button" id="iconDrawerClose">
+					<i class="ri-close-line" aria-hidden="true"></i>
+				</button>
+			</div>
+			<div class="icon-drawer-body">
+				<nav class="icon-tree" id="iconTree"></nav>
+				<div class="icon-grid-area" id="iconGridArea">
+					<p class="icon-grid-empty">왼쪽에서 카테고리를 선택하세요.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+	<script src="/js/builder-shared.js"></script>
+	<script src="/js/goal.js"></script>
+</body>
+</html>
