@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>KLIC TOOLs - 공통서브 빌더</title>
+	<link rel="stylesheet" href="css/fonts/Montserrat/fonts.css" media="all">
+	<link rel="stylesheet" href="css/fonts/Pretendard/fonts.css" media="all">
+	<link rel="stylesheet" href="css/fonts/RemixIcon_Fonts_v4.7.0/remixicon.css" media="all">
+	<link rel="stylesheet" href="css/basic.css" media="all">
+	<link rel="stylesheet" href="css/common.css" media="all">
+	<link rel="stylesheet" href="css/contents_common.css" media="all">
+</head>
+<body class="basic-builder-page contents-builder-page">
+	<div class="app-shell">
+		<div id="headerSentinel" class="header-sentinel"></div>
+		<header class="topbar">
+			<div class="topbar-brand">
+				<span class="topbar-logo" aria-hidden="true"></span>
+				<a class="topbar-title-link" href="/" aria-label="공통서브 빌더 홈">
+					<p class="eyebrow">Common Sub Builder</p>
+					<div class="title-row">
+						<strong>KLIC TOOLs</strong>
+						<span aria-hidden="true"></span>
+						<h1>공통서브 빌더</h1>
+					</div>
+				</a>
+			</div>
+			<div class="topbar-actions">
+				<span id="layoutStatus">0개 블록</span>
+				<span class="topbar-action-divider" aria-hidden="true"></span>
+				<button type="button" class="ghost-button markup-toggle" id="markupToggle" aria-expanded="false" aria-controls="markupPanel">
+					<i class="ri-code-s-slash-line" aria-hidden="true"></i>
+					마크업 보기
+				</button>
+				<button type="button" class="preview-button" id="previewToggle">
+					<i class="ri-eye-line" aria-hidden="true"></i>
+					미리보기
+				</button>
+			</div>
+			<button type="button" class="preview-return-button" id="previewReturn">
+				<i class="ri-arrow-left-line" aria-hidden="true"></i>
+				캔버스로 돌아가기
+			</button>
+		</header>
+
+		<main class="builder" id="builderMain">
+			<aside class="sidebar" aria-label="콘텐츠 블록 도구">
+				<section class="tool-section">
+					<div class="sidebar-tabs sidebar-tabs--two">
+						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="templates">디자인 템플릿</button>
+						<button type="button" class="sidebar-tab-btn is-active" data-sidebar-tab="blocks">디자인 블록</button>
+					</div>
+
+					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelTemplates">
+						<p class="template-empty">준비중입니다.</p>
+					</div>
+
+					<div class="sidebar-tab-panel" id="panelBlocks">
+						<div class="filter-scroll-shell">
+							<div class="component-filters" aria-label="콘텐츠 블록 필터">
+								<button type="button" class="is-active" data-template-filter="all">전체</button>
+								<button type="button" data-template-filter="title">타이틀</button>
+								<button type="button" data-template-filter="bullet">블릿</button>
+								<button type="button" data-template-filter="list">리스트</button>
+								<button type="button" data-template-filter="table">테이블</button>
+								<button type="button" data-template-filter="box">박스</button>
+								<button type="button" data-template-filter="tab">탭</button>
+								<button type="button" data-template-filter="button">버튼</button>
+								<button type="button" data-template-filter="wip">준비중 디자인</button>
+								<button type="button" data-template-filter="process">절차 디자인</button>
+								<button type="button" data-template-filter="etc">기타</button>
+							</div>
+						</div>
+						<div class="component-list is-empty-state" id="componentList" aria-label="드래그 가능한 콘텐츠 블록">
+							<p class="template-empty">준비중입니다.</p>
+						</div>
+					</div>
+				</section>
+			</aside>
+
+			<section class="workspace" aria-label="콘텐츠 작업 영역">
+				<div class="canvas-wrapper" id="canvasWrapper">
+					<div class="canvas-guide" aria-hidden="true"></div>
+					<div class="canvas-grid is-empty" id="canvasGrid" aria-label="콘텐츠 블록 배열 영역">
+						<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>
+					</div>
+					<div class="overlay-layer" id="overlayLayer" aria-hidden="true"></div>
+				</div>
+			</section>
+		</main>
+	</div>
+	<aside class="markup-panel" id="markupPanel" role="dialog" aria-modal="true" aria-label="생성된 마크업">
+		<div class="markup-backdrop" id="markupBackdrop"></div>
+		<div class="markup-panel-inner">
+			<div class="markup-head">
+				<div><h2>마크업</h2></div>
+				<div class="markup-head-actions">
+					<button type="button" class="primary-button copy-markup-button" id="copyMarkup">
+						<i class="ri-file-copy-line" aria-hidden="true"></i>복사
+					</button>
+					<button type="button" class="ghost-button markup-close-btn" id="markupClose" aria-label="닫기">
+						<i class="ri-close-line" aria-hidden="true"></i>
+					</button>
+				</div>
+			</div>
+			<textarea id="markupOutput" spellcheck="false" aria-label="생성된 HTML 마크업"></textarea>
+			<p class="copy-state" id="copyState" aria-live="polite"></p>
+		</div>
+	</aside>
+	<script src="js/builder-shared.js"></script>
+	<script src="js/sub-builder.js"></script>
+</body>
+</html>
