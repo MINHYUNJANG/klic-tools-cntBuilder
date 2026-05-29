@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "node scripts/build-static.js",
     "dev": "node server.js",
     "watch-icons": "node js/watch-icons.js"
   },

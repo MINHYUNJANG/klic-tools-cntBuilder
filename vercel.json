@@ -1,3 +1,24 @@
 {
-  "outputDirectory": "."
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": false,
+  "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/goal",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/goal/",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/goal/:path*",
+      "destination": "/:path*"
+    }
+  ]
 }
