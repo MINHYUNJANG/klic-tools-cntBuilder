@@ -887,7 +887,7 @@ body:not(.preview-mode)[data-preview-device="mobile"] .canvas-grid {
 }
 
 body:not(.preview-mode)[data-preview-device="tablet"] .canvas-wrapper::after {
-	content: "??뺥닜??夷?768px";
+	content: "768px";
 	display: block;
 	text-align: center;
 	margin-top: 12px;
@@ -898,7 +898,7 @@ body:not(.preview-mode)[data-preview-device="tablet"] .canvas-wrapper::after {
 }
 
 body:not(.preview-mode)[data-preview-device="mobile"] .canvas-wrapper::after {
-	content: "筌뤴뫀而??夷?380px";
+	content: "380px";
 	display: block;
 	text-align: center;
 	margin-top: 12px;
