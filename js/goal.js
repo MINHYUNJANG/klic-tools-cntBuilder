@@ -1,5 +1,6 @@
 const TEMPLATE_DIR = '/templates/';
-const TEMPLATE_MANIFEST = '/templates/goal/manifest.json';
+const DESIGN_BLOCK_MANIFEST = '/templates/design_block/manifest.json';
+const DESIGN_TEMPLATE_MANIFEST = '/templates/design_template/manifest.json';
 const DECORATION_MANIFEST = '/templates/common/decoration/manifest.json';
 const TEMPLATE_FILE_PATTERN = /\.(html|js)$/i;
 const TEMPLATE_IMAGE_PATTERN = /\.(png|jpe?g|webp|gif|svg)$/i;
@@ -43,6 +44,7 @@ const state = {
 	nextBlockId: 1,
 	dragPayload: '',
 	templateFilter: 'all',
+	designTemplateFilter: 'best',
 	sidebarTab: 'blocks',
 	decorationFilter: 'all',
 	selectedItem: null,
@@ -75,17 +77,27 @@ const DECORATION_CATEGORIES = {
 	'deco-06': 'illustration',
 };
 
+const DESIGN_TEMPLATE_FILTERS = [
+	{ id: 'best', label: 'BEST' },
+	{ id: 'recommended', label: '추천템플릿' },
+	{ id: 'education-goal', label: '교육목표' },
+	{ id: 'policy-direction', label: '정책방향' },
+	{ id: 'vision', label: '비전' },
+	{ id: 'etc', label: '기타' },
+];
+
 function getDecorationCategory(templateId) {
 	if (/^kinder-\d+/.test(templateId)) return 'kindergarten';
 	if (/^elem-\d+/.test(templateId)) return 'elementary';
 	if (/^middle-\d+/.test(templateId)) return 'middle';
 	if (/^high-\d+/.test(templateId)) return 'high';
+	if (/^illust-\d+/.test(templateId)) return 'illustration';
 	return DECORATION_CATEGORIES[templateId] || 'etc';
 }
 
 // manifest.json 로드 시 자동으로 채워짐
 const templateCategories = {};
-const templateBasePaths = {}; // { 'box-01': 'templates/goal/box/box-01', ... }
+const templateBasePaths = {}; // { 'box-01': 'templates/design_block/box/box-01', ... }
 
 const canvasGrid = document.getElementById('canvasGrid');
 const optionsPanel = document.getElementById('optionsPanel');
@@ -350,9 +362,10 @@ function normalizeTemplateFolder(path) {
 }
 
 function inferGoalTemplateCategory(path) {
+	if (/\/design_template\//.test(path)) return 'design-template';
 	if (/\/common\/divider\//.test(path)) return 'divider';
 	if (/\/common\/decoration\//.test(path)) return 'decoration';
-	const match = path.match(/\/goal\/([^/]+)\//);
+	const match = path.match(/\/design_block\/([^/]+)\//);
 	return match ? match[1] : '';
 }
 
@@ -362,7 +375,7 @@ function inferGoalTemplateId(path) {
 	const file = parts.at(-1) || '';
 	const folder = parts.at(-2) || '';
 	if (/^index\.html$/i.test(file) || !/\.[^.]+$/i.test(file)) return folder;
-	if (/\/common\/decoration\/(kinder|elem|middle|high)\//.test(normalized)) {
+	if (/\/common\/decoration\/(kinder|elem|middle|high|illust|deco)\//.test(normalized)) {
 		const n = file.replace(/\.[^.]+$/i, '').padStart(2, '0');
 		return `${folder}-${n}`;
 	}
@@ -382,7 +395,8 @@ function parseDirectoryListing(html) {
 
 async function discoverTemplatePaths() {
 	const manifests = await Promise.all([
-		fetchTemplateManifest(TEMPLATE_MANIFEST, true),
+		fetchTemplateManifest(DESIGN_BLOCK_MANIFEST, true),
+		fetchTemplateManifest(DESIGN_TEMPLATE_MANIFEST, false),
 		fetchTemplateManifest(DECORATION_MANIFEST, false)
 	]);
 	const entries = manifests.flat();
@@ -514,11 +528,15 @@ async function loadHtmlTemplate(path) {
 	const styleOptions = config.styleOptions || null;
 	const defaultInnerType = config.defaultInnerType || null;
 	const cssVarDefaults = readCssVarDefaults(element);
+	const recommend = config.recommend || null;
+	const templateFilters = config.templateFilters || [];
 
 	return {
 		id,
 		name,
 		path,
+		recommend,
+		templateFilters,
 		element,
 		addRowWrap,
 		isRootWrap,
@@ -556,11 +574,15 @@ async function loadImageTemplate(path) {
 	const styleOptions = config.styleOptions || null;
 	const defaultInnerType = config.defaultInnerType || null;
 	const cssVarDefaults = readCssVarDefaults(element);
+	const recommend = config.recommend || null;
+	const templateFilters = config.templateFilters || [];
 
 	return {
 		id,
 		name,
 		path,
+		recommend,
+		templateFilters,
 		element,
 		addRowWrap,
 		isRootWrap: addDirection === 'row',
@@ -623,6 +645,9 @@ async function loadTemplates() {
 	for (const path of htmlPaths) {
 		const template = await loadHtmlTemplate(path);
 		componentTemplates[template.id] = template;
+		if ((templateCategories[template.id] || '') === 'design-template') {
+			registerDesignTemplateSections(template);
+		}
 	}
 
 	for (const path of imagePaths) {
@@ -656,6 +681,42 @@ function createStyleForType(type) {
 	};
 	if (template.styleOptions) applyStyleOptionsDefaults(style, template.styleOptions);
 	return style;
+}
+
+function createSectionTemplate(parentTemplate, sectionElement, index) {
+	const id = `${parentTemplate.id}__section_${index + 1}`;
+	const element = document.createElement('div');
+	element.className = parentTemplate.element.className;
+	element.dataset.templateId = id;
+	element.dataset.templateName = `${parentTemplate.name} ${index + 1}`;
+	element.appendChild(sectionElement.cloneNode(true));
+
+	return {
+		...parentTemplate,
+		id,
+		name: element.dataset.templateName,
+		element,
+		addRowWrap: element,
+		isRootWrap: true,
+		addDirection: 'row',
+		max: 1,
+		editListLiTemplate: null,
+		getDefaultData: () => getDefaultData(element),
+		getDefaultStyle: () => readDefaultStyle(element),
+		render: (block, item, columnIndex, editable = true) => elementToHtml(renderTemplateElement(componentTemplates[id], item, block, columnIndex, editable)),
+		markup: item => htmlToLines(elementToHtml(renderTemplateElement(componentTemplates[id], item)))
+	};
+}
+
+function registerDesignTemplateSections(template) {
+	const sections = Array.from(template.element.children).filter(child => child.nodeType === 1);
+	template.designSectionTypes = sections.map((section, index) => {
+		const sectionTemplate = createSectionTemplate(template, section, index);
+		componentTemplates[sectionTemplate.id] = sectionTemplate;
+		templateCategories[sectionTemplate.id] = 'design-template-section';
+		templateBasePaths[sectionTemplate.id] = templateBasePaths[template.id];
+		return sectionTemplate.id;
+	});
 }
 
 function createBlock(type) {
@@ -692,6 +753,28 @@ function addBlock(type, targetBlockId = null, position = 'after') {
 	const newEl = canvasGrid.querySelector(`[data-block-id="${block.id}"]`);
 	if (newEl) newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 	selectBlock(block.id);
+}
+
+function addDesignTemplate(type, targetBlockId = null, position = 'after') {
+	const template = componentTemplates[type];
+	const sectionTypes = template?.designSectionTypes || [];
+	if (!sectionTypes.length) {
+		addBlock(type, targetBlockId, position);
+		return;
+	}
+	pushHistory();
+	const blocks = sectionTypes.map(sectionType => createBlock(sectionType));
+	const targetIndex = targetBlockId ? state.blocks.findIndex(item => item.id === targetBlockId) : -1;
+	if (targetIndex >= 0) {
+		state.blocks.splice(targetIndex + (position === 'before' ? 0 : 1), 0, ...blocks);
+	} else {
+		state.blocks.push(...blocks);
+	}
+	render();
+	const firstBlock = blocks[0];
+	const newEl = firstBlock ? canvasGrid.querySelector(`[data-block-id="${firstBlock.id}"]`) : null;
+	if (newEl) newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	if (firstBlock) selectBlock(firstBlock.id);
 }
 
 function moveBlock(blockId, targetBlockId = null, position = 'after') {
@@ -1007,6 +1090,8 @@ function renderComponentList() {
 	const templates = Object.values(componentTemplates).filter(template => {
 		const category = templateCategories[template.id] || 'box';
 		if (!SHOW_MIX_BLOCKS && category === 'mix') return false;
+		if (category === 'design-template') return false;
+		if (category === 'design-template-section') return false;
 		if (category === 'decoration') return false; // 꾸밈 스튜디오 탭에서 별도 표시
 		if (state.templateFilter === 'all') return true;
 		return category === state.templateFilter;
@@ -1049,6 +1134,59 @@ function renderComponentList() {
 	}
 }
 
+function renderDesignTemplateList() {
+	const panel = document.getElementById('panelTemplates');
+	if (!panel) return;
+	const templates = Object.values(componentTemplates).filter(template => {
+		if ((templateCategories[template.id] || '') !== 'design-template') return false;
+		const filters = Array.isArray(template.templateFilters) ? template.templateFilters : [];
+		return filters.includes(state.designTemplateFilter);
+	});
+
+	const filtersHtml = `<div class="filter-scroll-shell">
+		<div class="component-filters design-template-filters" aria-label="디자인 템플릿 필터">
+			${DESIGN_TEMPLATE_FILTERS.map(filter => `
+				<button type="button" class="${state.designTemplateFilter === filter.id ? 'is-active' : ''}"
+					data-design-template-filter="${escapeAttr(filter.id)}">${escapeHtml(filter.label)}</button>
+			`).join('')}
+		</div>
+	</div>`;
+
+	if (!templates.length) {
+		panel.classList.add('is-empty-state');
+		panel.innerHTML = `${filtersHtml}<p class="template-empty">디자인 템플릿이 없습니다.</p>`;
+		bindDesignTemplateFilterEvents(panel);
+		return;
+	}
+
+	panel.classList.remove('is-empty-state', 'sidebar-ready-panel');
+	panel.innerHTML = `${filtersHtml}<div class="component-list design-template-list" id="designTemplateList" aria-label="디자인 템플릿 목록">
+		${templates.map(t => `
+			<div class="component-item component-item--design-template" draggable="true" data-type="${escapeAttr(t.id)}">
+				<div class="component-thumb" aria-hidden="true">
+					<img src="${escapeAttr(getThumbUrl(t.id))}" alt="${escapeAttr(t.id)}" class="component-thumb-img">
+				</div>
+				<button type="button" class="component-add-btn" aria-label="${escapeAttr(t.id)} 추가">
+					<i class="ri-add-line" aria-hidden="true"></i>
+				</button>
+			</div>
+		`).join('')}
+	</div>`;
+	bindDesignTemplateFilterEvents(panel);
+	bindComponentEvents(panel);
+}
+
+function bindDesignTemplateFilterEvents(panel) {
+	KlicBuilderShared.bindScrollableFilters(panel);
+	KlicBuilderShared.bindFilterEvents({
+		container: panel,
+		onDesignTemplateFilter: filter => {
+			state.designTemplateFilter = filter;
+			renderDesignTemplateList();
+		}
+	});
+}
+
 function renderDecorationPanel() {
 	// ── 필터 탭 ──
 	const filtersEl = document.getElementById('decoFilters');
@@ -1057,9 +1195,10 @@ function renderDecorationPanel() {
 			<button type="button" class="deco-filter-btn${state.decorationFilter === f.id ? ' is-active' : ''}"
 				data-deco-filter="${escapeHtml(f.id)}">${escapeHtml(f.label)}</button>
 		`).join('');
-		KlicBuilderShared.bindScrollableFilters();
+		const panel = document.getElementById('panelDecoration') || filtersEl.parentElement || document;
+		KlicBuilderShared.bindScrollableFilters(panel);
 		KlicBuilderShared.bindFilterEvents({
-			onTemplateFilter: switchFilterTab,
+			container: panel,
 			onDecoFilter: filter => {
 				state.decorationFilter = filter;
 				renderDecorationPanel();
@@ -1112,6 +1251,318 @@ function renderDecorationPanel() {
 	}
 }
 
+function getTemplateRecommend(templateOrId) {
+	const template = typeof templateOrId === 'string' ? componentTemplates[templateOrId] : templateOrId;
+	return template?.recommend || {};
+}
+
+function asRecommendTokens(value) {
+	if (!value) return [];
+	if (Array.isArray(value)) return value.map(item => String(item).toLowerCase());
+	return [String(value).toLowerCase()];
+}
+
+function getCanvasRecommendTokens() {
+	const tokens = [];
+	state.blocks.forEach(block => {
+		const meta = getTemplateRecommend(block.type);
+		tokens.push(
+			...asRecommendTokens(meta.category),
+			...asRecommendTokens(meta.colors),
+			...asRecommendTokens(meta.tone),
+			...asRecommendTokens(meta.style),
+			...asRecommendTokens(meta.keywords),
+			...asRecommendTokens(meta.matchWith)
+		);
+	});
+	return tokens;
+}
+
+function getCanvasPrimaryColors() {
+	return state.blocks
+		.map(block => asRecommendTokens(getTemplateRecommend(block.type).colors)[0])
+		.filter(Boolean);
+}
+
+function scoreRecommendedTemplate(template) {
+	const meta = getTemplateRecommend(template);
+	const tokens = getCanvasRecommendTokens();
+	const primaryColors = getCanvasPrimaryColors();
+	const colors = asRecommendTokens(meta.colors);
+	const ownTokens = [
+		...asRecommendTokens(meta.category),
+		...colors,
+		...asRecommendTokens(meta.tone),
+		...asRecommendTokens(meta.style),
+		...asRecommendTokens(meta.keywords),
+		...asRecommendTokens(meta.matchWith)
+	];
+	const overlap = ownTokens.reduce((score, token) => score + (tokens.includes(token) ? 1 : 0), 0);
+	const primaryColorScore = primaryColors.includes(colors[0]) ? 100 : (colors.some(color => primaryColors.includes(color)) ? 20 : 0);
+	const category = templateCategories[template.id] || '';
+	const alreadyUsed = state.blocks.some(block => block.type === template.id);
+	const usedCategoryCount = state.blocks.filter(block => (templateCategories[block.type] || '') === category).length;
+	return primaryColorScore + overlap * 10 + (alreadyUsed ? -12 : 0) + (usedCategoryCount ? 1 : 5);
+}
+
+function getRecommendedBlocks(limit = 12) {
+	return Object.values(componentTemplates)
+		.filter(template => {
+			const category = templateCategories[template.id] || 'box';
+			if (!SHOW_MIX_BLOCKS && category === 'mix') return false;
+			return category !== 'decoration' && category !== 'design-template' && category !== 'design-template-section';
+		})
+		.sort((a, b) => scoreRecommendedTemplate(b) - scoreRecommendedTemplate(a) || a.id.localeCompare(b.id))
+		.slice(0, limit);
+}
+
+function getRecommendedDecorations(limit = 12) {
+	return Object.values(componentTemplates)
+		.filter(template => (templateCategories[template.id] || '') === 'decoration')
+		.sort((a, b) => scoreRecommendedTemplate(b) - scoreRecommendedTemplate(a) || a.id.localeCompare(b.id))
+		.slice(0, limit);
+}
+
+function getRecommendedIcons(limit = 18) {
+	const tokens = getCanvasRecommendTokens();
+	const icons = ICON_CATEGORIES.flatMap(cat => {
+		const catTokens = [cat.id, cat.label].filter(Boolean).map(item => String(item).toLowerCase());
+		if (cat.groups?.length) {
+			return cat.groups.flatMap(group => (group.icons || []).map(icon => ({
+				...icon,
+				_scoreTokens: [...catTokens, group.id, group.label, icon.name].filter(Boolean).map(item => String(item).toLowerCase())
+			})));
+		}
+		return (cat.icons || []).map(icon => ({
+			...icon,
+			_scoreTokens: [...catTokens, icon.name].filter(Boolean).map(item => String(item).toLowerCase())
+		}));
+	});
+	return icons
+		.sort((a, b) => {
+			const score = icon => icon._scoreTokens.reduce((sum, token) => sum + (tokens.some(base => token.includes(base) || base.includes(token)) ? 1 : 0), 0);
+			return score(b) - score(a) || String(a.name || '').localeCompare(String(b.name || ''));
+		})
+		.slice(0, limit);
+}
+
+function getPanelCenterPoint() {
+	const grid = document.getElementById('canvasGrid');
+	const wrapper = document.getElementById('canvasWrapper');
+	if (!grid || !wrapper) return { x: 100, y: 100 };
+	const gRect = grid.getBoundingClientRect();
+	const wRect = wrapper.getBoundingClientRect();
+	return {
+		x: Math.max(0, (wRect.left + wRect.width / 2) - gRect.left - 60),
+		y: Math.max(0, (wRect.top + wRect.height / 2) - gRect.top - 60)
+	};
+}
+
+function createRecommendationPanel() {
+	let panel = document.getElementById('recommendPanel');
+	if (panel) return panel;
+	panel = document.createElement('aside');
+	panel.id = 'recommendPanel';
+	panel.className = 'recommend-panel';
+	panel.dataset.recommendTab = 'blocks';
+	panel.dataset.initialOffset = 'true';
+	panel.innerHTML = `
+		<div class="recommend-panel-head" data-recommend-drag-handle>
+			<strong>추천디자인</strong>
+			<button type="button" class="recommend-close" aria-label="추천디자인 닫기">
+				<i class="ri-close-line" aria-hidden="true"></i>
+			</button>
+		</div>
+		<div class="filter-scroll-shell recommend-tab-shell">
+			<div class="component-filters recommend-tabs" role="tablist">
+				<button type="button" class="is-active" data-recommend-tab="blocks">디자인블록</button>
+				<button type="button" data-recommend-tab="decorations">꾸밈스튜디오</button>
+			</div>
+		</div>
+		<div class="recommend-list"></div>
+	`;
+	document.body.appendChild(panel);
+	bindRecommendationPanel(panel);
+	return panel;
+}
+
+function bindRecommendationPanel(panel) {
+	panel.querySelector('.recommend-close')?.addEventListener('click', () => {
+		panel.dataset.dismissed = 'true';
+		panel.dataset.wasOpened = 'true';
+		panel.classList.remove('is-open');
+		updateRecommendFab();
+	});
+	panel.querySelectorAll('[data-recommend-tab]').forEach(button => {
+		button.addEventListener('click', () => {
+			panel.dataset.recommendTab = button.dataset.recommendTab;
+			panel.querySelectorAll('[data-recommend-tab]').forEach(btn => {
+				btn.classList.toggle('is-active', btn === button);
+			});
+			renderRecommendationPanel();
+		});
+	});
+
+	const handle = panel.querySelector('[data-recommend-drag-handle]');
+	let dragging = false;
+	let startX = 0;
+	let startY = 0;
+	let startLeft = 0;
+	let startTop = 0;
+	handle?.addEventListener('pointerdown', event => {
+		if (event.button !== 0 || event.target.closest('button')) return;
+		dragging = true;
+		startX = event.clientX;
+		startY = event.clientY;
+		const rect = panel.getBoundingClientRect();
+		startLeft = rect.left;
+		startTop = rect.top;
+		panel.classList.add('is-dragging');
+		handle.setPointerCapture?.(event.pointerId);
+	});
+	handle?.addEventListener('pointermove', event => {
+		if (!dragging) return;
+		const width = panel.offsetWidth;
+		const height = panel.offsetHeight;
+		const left = Math.max(8, Math.min(window.innerWidth - width - 8, startLeft + event.clientX - startX));
+		const top = Math.max(8, Math.min(window.innerHeight - height - 8, startTop + event.clientY - startY));
+		panel.style.left = `${left}px`;
+		panel.style.top = `${top}px`;
+		panel.style.right = 'auto';
+		panel.dataset.userPosition = 'true';
+	});
+	const stopDrag = event => {
+		if (!dragging) return;
+		dragging = false;
+		panel.classList.remove('is-dragging');
+		handle.releasePointerCapture?.(event.pointerId);
+	};
+	handle?.addEventListener('pointerup', stopDrag);
+	handle?.addEventListener('pointercancel', stopDrag);
+}
+
+function shouldShowRecommendationPanel() {
+	return state.sidebarTab === 'blocks' && state.blocks.length >= 2 && !document.body.classList.contains('preview-mode');
+}
+
+function positionRecommendationPanel(panel) {
+	if (!panel || panel.dataset.userPosition === 'true' || panel.dataset.hasPosition === 'true') return;
+	const anchor = document.querySelector('.right-col') || document.getElementById('canvasWrapper');
+	if (!anchor) return;
+	const rect = anchor.getBoundingClientRect();
+	const width = panel.offsetWidth || 272;
+	const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left - width - 8));
+	let top = Math.max(8, rect.top);
+	if (panel.dataset.initialOffset === 'true') {
+		top = top + 10;
+		delete panel.dataset.initialOffset;
+	}
+	panel.style.left = `${left}px`;
+	panel.style.top = `${top}px`;
+	panel.style.right = 'auto';
+	panel.dataset.hasPosition = 'true';
+}
+
+function updateRecommendFab() {
+	const button = document.getElementById('recommendPanelOpen');
+	if (!button) return;
+	const panel = document.getElementById('recommendPanel');
+	const showButton = shouldShowRecommendationPanel() && panel?.dataset.dismissed === 'true' && panel?.dataset.wasOpened === 'true';
+	button.hidden = !showButton;
+}
+
+function openRecommendationPanel() {
+	const panel = createRecommendationPanel();
+	panel.dataset.dismissed = 'false';
+	panel.dataset.wasOpened = 'true';
+	panel.classList.add('is-open');
+	if (panel.dataset.hasPosition !== 'true') {
+		positionRecommendationPanel(panel);
+	}
+	renderRecommendationPanel();
+	updateRecommendFab();
+}
+
+function renderRecommendationPanel() {
+	const shouldShow = shouldShowRecommendationPanel();
+	if (!shouldShow) {
+		const panel = document.getElementById('recommendPanel');
+		if (panel) {
+			panel.classList.remove('is-open');
+			panel.dataset.dismissed = '';
+		}
+		updateRecommendFab();
+		return;
+	}
+	const panel = createRecommendationPanel();
+	if (panel.dataset.dismissed !== 'true') {
+		panel.dataset.dismissed = 'false';
+		panel.classList.add('is-open');
+	} else {
+		panel.classList.remove('is-open');
+	}
+	updateRecommendFab();
+
+	const list = panel.querySelector('.recommend-list');
+	if (!list) return;
+	const tab = panel.dataset.recommendTab === 'decorations' ? 'decorations' : 'blocks';
+	panel.dataset.recommendTab = tab;
+	if (panel.dataset.initialOffset === 'true') {
+		positionRecommendationPanel(panel);
+	}
+	if (tab === 'decorations') {
+		const decorations = getRecommendedDecorations();
+		list.innerHTML = decorations.length ? decorations.map(template => `
+			<button type="button" class="recommend-item component-item component-item--decoration" data-recommend-decoration="${escapeAttr(template.id)}">
+				<span class="component-thumb">
+					<img src="${escapeAttr(getDecorationImageUrl(template))}" alt="${escapeAttr(template.id)}" class="component-thumb-img">
+				</span>
+				<span class="component-add-btn" aria-hidden="true">
+					<i class="ri-add-line" aria-hidden="true"></i>
+				</span>
+			</button>
+		`).join('') : '<p class="recommend-empty">추천 꾸밈요소가 없습니다.</p>';
+		list.querySelectorAll('[data-recommend-decoration]').forEach(button => {
+			button.addEventListener('click', event => {
+				event.preventDefault();
+				event.stopPropagation();
+				const pos = getPanelCenterPoint();
+				addOverlay(button.dataset.recommendDecoration, pos.x, pos.y);
+			});
+		});
+		return;
+	}
+	const blocks = getRecommendedBlocks();
+	list.innerHTML = blocks.map(template => `
+		<button type="button" class="recommend-item component-item" data-recommend-block="${escapeAttr(template.id)}">
+			<span class="component-thumb">
+				<img src="${escapeAttr(getThumbUrl(template.id))}" alt="${escapeAttr(template.id)}" class="component-thumb-img">
+			</span>
+			<span class="component-add-btn" aria-hidden="true">
+				<i class="ri-add-line" aria-hidden="true"></i>
+			</span>
+		</button>
+	`).join('');
+	list.querySelectorAll('[data-recommend-block]').forEach(button => {
+		button.addEventListener('click', event => {
+			event.preventDefault();
+			addBlock(button.dataset.recommendBlock);
+			const panel = document.getElementById('recommendPanel');
+			if (panel) panel.classList.add('is-open');
+		});
+	});
+}
+
+function applyRecommendedIcon(src, name) {
+	const selected = state.selectedItem;
+	if (!selected || selected.columnIndex === null) return;
+	const item = findItemByBlockId(selected.blockId, selected.columnIndex);
+	if (!item || !Object.prototype.hasOwnProperty.call(item, 'icon')) return;
+	pushHistory();
+	item.icon = `<img src="${escapeAttr(src)}" alt="${escapeAttr(name || '아이콘')}" class="block-icon-img">`;
+	render();
+}
+
 function switchSidebarTab(tab) {
 	state.sidebarTab = tab;
 	document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
@@ -1123,13 +1574,11 @@ function switchSidebarTab(tab) {
 	if (panelTemplates) panelTemplates.classList.toggle('is-hidden', tab !== 'templates');
 	if (panelBlocks) panelBlocks.classList.toggle('is-hidden', tab !== 'blocks');
 	if (panelCustom) panelCustom.classList.toggle('is-hidden', tab !== 'custom');
+	renderRecommendationPanel();
 }
 
 function openDecoStudio() {
 	if (state.previewDevice !== 'pc') return;
-	const sidebar = document.querySelector('.sidebar');
-	if (!sidebar) return;
-	sidebar.classList.add('deco-studio-open');
 	document.body.classList.add('deco-studio-open');
 	renderDecorationPanel();
 }
@@ -1139,8 +1588,16 @@ function closeDecoStudio() {
 	document.body.classList.remove('deco-studio-open');
 }
 
+function relocateDecoStudioDrawer() {
+	const drawer = document.getElementById('decoStudioDrawer');
+	if (drawer && drawer.parentElement !== document.body) {
+		document.body.appendChild(drawer);
+	}
+}
+
 function updateDecoStudioAvailability() {
 	const button = document.getElementById('decoStudioOpen');
+	const recommendButton = document.getElementById('recommendPanelOpen');
 	const disabled = state.previewDevice !== 'pc';
 	if (button) {
 		button.classList.toggle('is-disabled', disabled);
@@ -1150,18 +1607,20 @@ function updateDecoStudioAvailability() {
 			disabled ? '태블릿·모바일 모드에서는 꾸밈 스튜디오를 사용할 수 없습니다' : '꾸밈 스튜디오 열기'
 		);
 	}
+	if (recommendButton) {
+		recommendButton.classList.toggle('is-disabled', disabled);
+		recommendButton.setAttribute('aria-disabled', String(disabled));
+	}
 	if (disabled) closeDecoStudio();
 }
 
 function bindFilterEvents() {
+	const panelBlocks = document.getElementById('panelBlocks') || document;
 	KlicBuilderShared.bindFilterEvents({
-		onTemplateFilter: switchFilterTab,
-		onDecoFilter: filter => {
-			state.decorationFilter = filter;
-			renderDecorationPanel();
-		}
+		container: panelBlocks,
+		onBlockFilter: switchFilterTab
 	});
-	KlicBuilderShared.bindScrollableFilters();
+	KlicBuilderShared.bindScrollableFilters(panelBlocks);
 }
 
 function activateFilterButton(button) {
@@ -1326,6 +1785,15 @@ function syncCanvasPresence() {
 	return { hasBlocks, hasOverlays };
 }
 
+function syncCanvasGuideSize() {
+	const guide = document.querySelector('.canvas-guide');
+	if (!guide || !canvasGrid) return;
+	const gridHeight = canvasGrid.scrollHeight || canvasGrid.offsetHeight || 0;
+	const wrapper = document.getElementById('canvasWrapper');
+	const wrapperHeight = wrapper?.clientHeight || 0;
+	guide.style.height = `${Math.max(gridHeight, wrapperHeight)}px`;
+}
+
 function render() {
 	const { hasBlocks, hasOverlays } = syncCanvasPresence();
 	canvasGrid.className = hasBlocks ? 'canvas-grid' : 'canvas-grid is-empty';
@@ -1336,7 +1804,9 @@ function render() {
 		: '<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>';
 	bindRenderedEvents();
 	applyAllTemplateStyles();
+	syncCanvasGuideSize();
 	updateMarkup();
+	renderRecommendationPanel();
 	if (state.selectedItem) {
 		const { blockId, columnIndex } = state.selectedItem;
 		const block = state.blocks.find(b => b.id === blockId);
@@ -2259,15 +2729,20 @@ function bindComponentEvents(container = document) {
 		canvasGrid,
 		getDragPayload: item => {
 			const isDecoration = item.dataset.decoration === 'true';
+			const category = templateCategories[item.dataset.type] || '';
 			const customDecorationId = item.dataset.customDecorationId || '';
+			if (category === 'design-template') return `new-design-template:${item.dataset.type}`;
 			return isDecoration
 				? (customDecorationId ? `overlay-custom:${customDecorationId}` : `overlay-type:${item.dataset.type}`)
 				: `new-block:${item.dataset.type}`;
 		},
 		onAdd: item => {
 			const isDecoration = item.dataset.decoration === 'true';
+			const category = templateCategories[item.dataset.type] || '';
 			const customDecorationId = item.dataset.customDecorationId || '';
-			if (isDecoration) {
+			if (category === 'design-template') {
+				addDesignTemplate(item.dataset.type);
+			} else if (isDecoration) {
 				const grid = document.getElementById('canvasGrid');
 				const wrapper = document.getElementById('canvasWrapper');
 				if (grid && wrapper) {
@@ -2285,8 +2760,11 @@ function bindComponentEvents(container = document) {
 		},
 		onDragStart: item => {
 			const isDecoration = item.dataset.decoration === 'true';
+			const category = templateCategories[item.dataset.type] || '';
 			const customDecorationId = item.dataset.customDecorationId || '';
-			state.dragPayload = isDecoration
+			state.dragPayload = category === 'design-template'
+				? `new-design-template:${item.dataset.type}`
+				: isDecoration
 				? (customDecorationId ? `overlay-custom:${customDecorationId}` : `overlay-type:${item.dataset.type}`)
 				: `new-block:${item.dataset.type}`;
 			const dragCat = templateCategories[item.dataset.type] || '';
@@ -3249,7 +3727,7 @@ function handleCanvasDragOver(event) {
 		document.getElementById('canvasWrapper')?.classList.add('is-decoration-over');
 		return;
 	}
-	if (payload.startsWith('new-block:') || payload.startsWith('existing-block:') || payload.startsWith('copy-block:')) {
+	if (payload.startsWith('new-block:') || payload.startsWith('new-design-template:') || payload.startsWith('existing-block:') || payload.startsWith('copy-block:')) {
 		event.preventDefault();
 		canvasGrid.classList.add('is-over');
 	}
@@ -3284,6 +3762,12 @@ function handleCanvasDrop(event) {
 		addBlock(payload.replace('new-block:', ''), targetBlock ? targetBlock.dataset.blockId : null, position);
 		return;
 	}
+	if (payload.startsWith('new-design-template:')) {
+		event.preventDefault();
+		event.stopPropagation();
+		addDesignTemplate(payload.replace('new-design-template:', ''), targetBlock ? targetBlock.dataset.blockId : null, position);
+		return;
+	}
 	if (payload.startsWith('existing-block:')) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -3300,7 +3784,7 @@ function handleCanvasDrop(event) {
 function handleBlockDrop(event) {
 	if (document.body.classList.contains('preview-mode')) return;
 	const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
-	if (!payload.startsWith('new-block:') && !payload.startsWith('existing-block:') && !payload.startsWith('copy-block:')) return;
+	if (!payload.startsWith('new-block:') && !payload.startsWith('new-design-template:') && !payload.startsWith('existing-block:') && !payload.startsWith('copy-block:')) return;
 	event.preventDefault();
 	event.stopPropagation();
 	const targetBlockId = event.currentTarget.dataset.blockId;
@@ -3309,6 +3793,10 @@ function handleBlockDrop(event) {
 	state.dragPayload = '';
 	if (payload.startsWith('new-block:')) {
 		addBlock(payload.replace('new-block:', ''), targetBlockId, position);
+		return;
+	}
+	if (payload.startsWith('new-design-template:')) {
+		addDesignTemplate(payload.replace('new-design-template:', ''), targetBlockId, position);
 		return;
 	}
 	if (payload.startsWith('copy-block:')) {
@@ -3745,16 +4233,48 @@ async function savePreviewImage() {
 	if (wasOverlayEdit) document.body.classList.remove('overlay-edit');
 	renderOverlayItems();
 
-	const captureTarget = document.getElementById('canvasWrapper') || canvasGrid;
+	const captureTarget = document.getElementById('canvasWrapper');
+	const canvasGridEl = document.getElementById('canvasGrid');
+	if (!captureTarget || !canvasGridEl) {
+		alert('이미지 저장 대상 요소를 찾을 수 없습니다.');
+		btn.disabled = false;
+		return;
+	}
+
+	document.body.classList.add('preview-export');
+
+	// canvasGrid 실제 크기 측정 (preview-export CSS 적용 후)
+	const gridWidth = canvasGridEl.offsetWidth;
+	const gridHeight = canvasGridEl.scrollHeight;
+
+	// canvasWrapper를 canvasGrid와 동일한 크기로 강제 (캡처 영역 = 콘텐츠만)
+	const orig = {
+		wOverflow: captureTarget.style.overflow,
+		wHeight:   captureTarget.style.height,
+		wMaxHeight: captureTarget.style.maxHeight,
+		wWidth:    captureTarget.style.width,
+		wMaxWidth: captureTarget.style.maxWidth,
+		wScrollTop: captureTarget.scrollTop,
+		wScrollLeft: captureTarget.scrollLeft,
+		gMargin:   canvasGridEl.style.margin,
+	};
+	captureTarget.style.overflow  = 'visible';
+	captureTarget.style.height    = `${gridHeight}px`;
+	captureTarget.style.maxHeight = 'none';
+	captureTarget.style.width     = `${gridWidth}px`;
+	captureTarget.style.maxWidth  = `${gridWidth}px`;
+	captureTarget.scrollTop  = 0;
+	captureTarget.scrollLeft = 0;
+	canvasGridEl.style.margin = '0';
 
 	// 가이드 숨김
 	const guide = captureTarget.querySelector('.canvas-guide');
 	if (guide) guide.hidden = true;
 
 	// 오버레이 이미지를 data URL로 인라인 (html-to-image 캡처 누락 방지)
-	const overlayImgs = [...captureTarget.querySelectorAll('.overlay-layer img')];
-	const imgOrigSrcs = overlayImgs.map(img => img.getAttribute('src'));
-	await Promise.all(overlayImgs.map(async (img, i) => {
+	const exportImgs = [...captureTarget.querySelectorAll('img')];
+	const imgOrigSrcs = exportImgs.map(img => img.getAttribute('src'));
+	await Promise.all(exportImgs.map(async (img) => {
 		try {
 			const resp = await fetch(img.src);
 			const blob = await resp.blob();
@@ -3770,9 +4290,11 @@ async function savePreviewImage() {
 
 	try {
 		const targetWidth = Number(state.canvasWidth) || 1200;
-		const pixelRatio = targetWidth / captureTarget.offsetWidth;
+		const pixelRatio = targetWidth / Math.max(1, gridWidth);
 		const dataUrl = await lib.toPng(captureTarget, {
 			backgroundColor: '#ffffff',
+			width: gridWidth,
+			height: gridHeight,
 			pixelRatio
 		});
 		const link = document.createElement('a');
@@ -3784,8 +4306,17 @@ async function savePreviewImage() {
 		alert('이미지 저장에 실패했습니다.');
 	} finally {
 		// 이미지 src 복원
-		overlayImgs.forEach((img, i) => { if (imgOrigSrcs[i]) img.src = imgOrigSrcs[i]; });
+		exportImgs.forEach((img, i) => { if (imgOrigSrcs[i]) img.src = imgOrigSrcs[i]; });
 		if (guide) guide.hidden = false;
+		captureTarget.style.overflow  = orig.wOverflow;
+		captureTarget.style.height    = orig.wHeight;
+		captureTarget.style.maxHeight = orig.wMaxHeight;
+		captureTarget.style.width     = orig.wWidth;
+		captureTarget.style.maxWidth  = orig.wMaxWidth;
+		captureTarget.scrollTop  = orig.wScrollTop;
+		captureTarget.scrollLeft = orig.wScrollLeft;
+		canvasGridEl.style.margin = orig.gMargin;
+		document.body.classList.remove('preview-export');
 		btn.disabled = false;
 		if (wasOverlayEdit) {
 			document.body.classList.add('overlay-edit');
@@ -4017,10 +4548,12 @@ function initFormatToolbar() {
 }
 
 async function init() {
+	relocateDecoStudioDrawer();
 	loadCustomDecorations();
 	componentList.classList.add('is-empty-state');
 	try {
 		await Promise.all([loadTemplates(), loadIconCategories()]);
+		renderDesignTemplateList();
 		renderComponentList();
 	} catch (error) {
 		console.error(error);
@@ -4030,7 +4563,10 @@ async function init() {
 	document.getElementById('clearCanvas').addEventListener('click', clearCanvas);
 	document.getElementById('copyMarkup').addEventListener('click', copyMarkup);
 	bindFilterEvents();
-	KlicBuilderShared.bindSidebarTabs(tab => { state.sidebarTab = tab; });
+	KlicBuilderShared.bindSidebarTabs(tab => {
+		state.sidebarTab = tab;
+		renderRecommendationPanel();
+	});
 	previewToggle.addEventListener('click', togglePreview);
 	previewReturn.addEventListener('click', returnToCanvas);
 	savePreviewImageButton.addEventListener('click', savePreviewImage);
@@ -4038,10 +4574,16 @@ async function init() {
 	markupToggle.addEventListener('click', toggleMarkupPanel);
 	document.getElementById('decoStudioOpen')?.addEventListener('click', openDecoStudio);
 	document.getElementById('decoStudioClose')?.addEventListener('click', closeDecoStudio);
+	document.getElementById('recommendPanelOpen')?.addEventListener('click', openRecommendationPanel);
+	updateRecommendFab();
 	document.addEventListener('click', event => {
 		if (!event.target.closest('[data-canvas-size-menu]')) {
 			document.querySelectorAll('[data-canvas-size-menu].is-open').forEach(menu => menu.classList.remove('is-open'));
 		}
+	});
+	window.addEventListener('resize', () => {
+		positionRecommendationPanel(document.getElementById('recommendPanel'));
+		syncCanvasGuideSize();
 	});
 	document.getElementById('overlayEditToggle')?.addEventListener('click', toggleOverlayEdit);
 	document.getElementById('overlayEditDone')?.addEventListener('click', exitOverlayEdit);
