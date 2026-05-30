@@ -41,6 +41,10 @@
     },
     {
         "type":  "image-set",
+        "path":  "templates/common/decoration/illust/illust-03/"
+    },
+    {
+        "type":  "image-set",
         "path":  "templates/common/decoration/elem/elem-01/"
     },
     {

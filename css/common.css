@@ -1513,6 +1513,21 @@ body.header-compact .topbar-extra {
 	justify-content: center;
 }
 
+.sidebar-tab-panel.is-empty-state {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.sidebar-tab-panel.is-empty-state > .template-empty {
+	display: grid;
+	place-items: center;
+	flex: 1 1 auto;
+	min-height: 240px;
+	margin: 0;
+	padding: 0 10px;
+}
+
 .component-list > .template-loading:only-child {
 	height: 100%;
 	min-height: 100%;
@@ -1605,7 +1620,7 @@ body.header-compact .topbar-extra {
 }
 
 .component-item--custom-decoration::before {
-	content: '업로드';
+	content: '꾸밈';
 	position: absolute;
 	top: 5px;
 	left: 5px;
@@ -1834,9 +1849,7 @@ body.header-compact .topbar-extra {
 }
 
 .deco-fab {
-	position: absolute;
-	top: 20px;
-	left: 20px;
+	
 	z-index: 35;
 	width: 46px;
 	height: 46px;
@@ -1873,56 +1886,61 @@ body[data-preview-device="mobile"]:not(.preview-mode) .deco-fab:hover {
 	background: #fff;
 }
 
-.deco-fab::after {
-	content: '꾸밈 스튜디오';
+.deco-fab::after,
+.recommend-fab::after {
+	content: attr(aria-label);
 	position: absolute;
-	left: calc(100% + 10px);
+	right: calc(100% + 10px);
 	top: 50%;
 	width: max-content;
-	transform: translateY(-50%) translateX(-4px);
+	max-width: 230px;
+	transform: translateY(-50%) translateX(0);
 	border: 1px solid #dce2ee;
-	border-radius: 7px;
-	padding: 6px 9px;
+	border-radius: 8px;
+	padding: 8px 10px;
 	background: #fff;
-	color: #252525;
+	color: #667084;
 	font-size: 1.15rem;
-	font-weight: 800;
-	line-height: 1;
-	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+	font-weight: 700;
+	line-height: 1.35;
+	white-space: nowrap;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+	z-index: 5;
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
-body[data-preview-device="tablet"]:not(.preview-mode) .deco-fab::after,
-body[data-preview-device="mobile"]:not(.preview-mode) .deco-fab::after {
-	content: '태블릿·모바일 모드에서는 사용할 수 없습니다.';
-}
-
-.deco-fab::before {
+.deco-fab::before,
+.recommend-fab::before {
 	content: '';
 	position: absolute;
-	left: calc(100% + 5px);
+	right: calc(100% + 4px);
 	top: 50%;
-	width: 9px;
-	height: 9px;
+	width: 10px;
+	height: 10px;
 	transform: translateY(-50%) rotate(45deg);
 	border-left: 1px solid #dce2ee;
-	border-bottom: 1px solid #dce2ee;
+	border-top: 1px solid #dce2ee;
 	background: #fff;
+	z-index: 4;
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.14s ease;
 }
 
 .deco-fab:hover::after,
-.deco-fab:focus-visible::after {
+.deco-fab:focus-visible::after,
+.recommend-fab:hover::after,
+.recommend-fab:focus-visible::after {
 	opacity: 1;
 	transform: translateY(-50%) translateX(0);
 }
 
 .deco-fab:hover::before,
-.deco-fab:focus-visible::before {
+.deco-fab:focus-visible::before,
+.recommend-fab:hover::before,
+.recommend-fab:focus-visible::before {
 	opacity: 1;
 }
 
@@ -1936,22 +1954,23 @@ body.deco-studio-open .deco-fab {
 }
 
 .deco-studio-drawer {
-	position: absolute;
-	top: 0;
+	position: fixed;
+	top: var(--header-h, 56px);
 	bottom: 0;
-	left: 0;
-	z-index: 40;
+	right: 0;
+	z-index: 85;
 	display: flex;
 	flex-direction: column;
-	width: calc(100% + 1px);
-	border-right: 1px solid var(--line);
+	width: 430px;
+	max-width: min(430px, 100vw);
+	border-left: 1px solid var(--line);
 	background: #fff;
-	box-shadow: 14px 0 32px rgba(0, 0, 0, 0.12);
-	transform: translateX(-102%);
+	box-shadow: -14px 0 32px rgba(0, 0, 0, 0.12);
+	transform: translateX(102%);
 	transition: transform 0.22s ease;
 }
 
-.sidebar.deco-studio-open .deco-studio-drawer {
+body.deco-studio-open .deco-studio-drawer {
 	transform: translateX(0);
 }
 
@@ -2849,10 +2868,10 @@ body.markup-open .markup-panel {
 	display: block;
 	position: absolute;
 	top: 0;
-	bottom: 0;
 	left: 50%;
 	transform: translateX(-50%);
 	width: min(1280px, 100%);
+	min-height: 100%;
 	padding: 0;
 	border: 1px dashed rgba(29, 32, 136, 0.18);
 	pointer-events: none;
@@ -2908,6 +2927,7 @@ body.preview-mode .canvas-guide {
 	left: 0px;
 	right: 0px;
 	width: auto;
+	height: auto !important;
 	transform: none;
 	padding: 0;
 }
@@ -3127,12 +3147,12 @@ body.preview-mode .canvas-grid {
 }
 
 body.preview-mode .overlay-layer {
-	top: 30px;
+	top: 0px;
 	min-height: 100%;
 }
 
 body.preview-mode .canvas-wrapper {
-	overflow: hidden;
+	overflow: auto;
 	height: 100%;
 	min-height: 0;
 	background: #fff;
@@ -3201,7 +3221,7 @@ body.preview-mode .canvas-empty {
 }
 
 .preview-export .canvas-grid {
-	gap: clamp(18px, 3vw, 34px);
+	gap: 34px;
 	min-height: 0;
 	padding: 0;
 	background: #fff;
@@ -3220,7 +3240,7 @@ body.preview-mode .canvas-empty {
 }
 
 .preview-export .builder-columns {
-	gap: clamp(10px, 1.6vw, 18px);
+	gap: 18px;
 	padding: 0;
 }
 

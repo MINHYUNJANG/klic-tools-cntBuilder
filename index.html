@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 	<meta charset="UTF-8">
@@ -131,9 +131,14 @@
 			</aside>
 
 			<section class="workspace" aria-label="서브콘텐츠 작업 영역">
-				<button type="button" class="deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기">
-					<i class="ri-sparkling-2-line" aria-hidden="true"></i>
-				</button>
+				<div class="canvas-quick-actions" aria-label="캔버스 보조 도구">
+					<button type="button" class="canvas-tool-fab deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기">
+						<i class="ri-sparkling-2-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="canvas-tool-fab recommend-fab" id="recommendPanelOpen" aria-label="추천디자인 열기" hidden>
+						<i class="ri-magic-line" aria-hidden="true"></i>
+					</button>
+				</div>
 				<div class="canvas-wrapper" id="canvasWrapper">
 					<div class="canvas-guide" aria-hidden="true"></div>
 					<div class="canvas-grid" id="canvasGrid" aria-label="디자인 블록 배열 영역"></div>
