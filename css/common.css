@@ -1892,7 +1892,7 @@ body[data-preview-device="mobile"]:not(.preview-mode) .deco-fab:hover {
 	right: calc(100% + 10px);
 	top: 50%;
 	width: max-content;
-	max-width: 230px;
+	max-width: 220px;
 	transform: translateY(-50%) translateX(0);
 	border: 1px solid #dce2ee;
 	border-radius: 8px;
@@ -1902,7 +1902,9 @@ body[data-preview-device="mobile"]:not(.preview-mode) .deco-fab:hover {
 	font-size: 1.15rem;
 	font-weight: 700;
 	line-height: 1.35;
-	white-space: nowrap;
+	white-space: pre-wrap;
+	word-break: keep-all;
+	overflow-wrap: break-word;
 	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
 	z-index: 5;
 	opacity: 0;
@@ -1960,8 +1962,8 @@ body.deco-studio-open .deco-fab {
 	z-index: 85;
 	display: flex;
 	flex-direction: column;
-	width: 430px;
-	max-width: min(430px, 100vw);
+	width: 350px;
+	max-width: min(350px, 100vw);
 	border-left: 1px solid var(--line);
 	background: #fff;
 	box-shadow: -14px 0 32px rgba(0, 0, 0, 0.12);

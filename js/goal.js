@@ -1446,7 +1446,7 @@ function shouldShowRecommendationPanel() {
 }
 
 function positionRecommendationPanel(panel) {
-	if (!panel || panel.dataset.userPosition === 'true' || panel.dataset.hasPosition === 'true') return;
+	if (!panel || panel.dataset.userPosition === 'true') return;
 	const anchor = document.querySelector('.right-col') || document.getElementById('canvasWrapper');
 	if (!anchor) return;
 	const rect = anchor.getBoundingClientRect();
@@ -1603,12 +1603,8 @@ function updateDecoStudioAvailability() {
 		button.setAttribute('aria-disabled', String(disabled));
 		button.setAttribute(
 			'aria-label',
-			disabled ? '태블릿·모바일 모드에서는 꾸밈 스튜디오를 사용할 수 없습니다' : '꾸밈 스튜디오 열기'
+			disabled ? '태블릿·모바일 모드에서는\n꾸밈 스튜디오를 사용할 수 없습니다' : '꾸밈 스튜디오 열기'
 		);
-	}
-	if (recommendButton) {
-		recommendButton.classList.toggle('is-disabled', disabled);
-		recommendButton.setAttribute('aria-disabled', String(disabled));
 	}
 	if (disabled) closeDecoStudio();
 
@@ -1636,6 +1632,28 @@ window.addEventListener('resize', () => {
     const btn = document.getElementById('decoStudioOpen');
     if (btn && btn.getAttribute('aria-disabled') === 'true') setDecoTooltipFixedPosition(btn);
 });
+
+// Ensure hover shows tooltip for disabled deco button by adding a class and reusing the existing pseudo-element style.
+function attachDecoTooltipHover() {
+	const btn = document.getElementById('decoStudioOpen');
+	if (!btn) return;
+	btn.addEventListener('mouseenter', () => {
+		if (btn.getAttribute('aria-disabled') === 'true') {
+			setDecoTooltipFixedPosition(btn);
+			document.documentElement.classList.add('deco-tooltip-hover');
+		}
+	});
+	btn.addEventListener('mouseleave', () => {
+		document.documentElement.classList.remove('deco-tooltip-hover');
+	});
+}
+
+// try attach immediately; if scripts run before DOM ready, defer
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+	attachDecoTooltipHover();
+} else {
+	window.addEventListener('DOMContentLoaded', attachDecoTooltipHover);
+}
 
 function bindFilterEvents() {
 	const panelBlocks = document.getElementById('panelBlocks') || document;
