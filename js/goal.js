@@ -1310,7 +1310,7 @@ function getRecommendedBlocks(limit = 12) {
 		.filter(template => {
 			const category = templateCategories[template.id] || 'box';
 			if (!SHOW_MIX_BLOCKS && category === 'mix') return false;
-			return category !== 'decoration' && category !== 'design-template' && category !== 'design-template-section';
+			return category !== 'decoration' && category !== 'design-template' && category !== 'design-template-section' && category !== 'divider';
 		})
 		.sort((a, b) => scoreRecommendedTemplate(b) - scoreRecommendedTemplate(a) || a.id.localeCompare(b.id))
 		.slice(0, limit);
@@ -1489,7 +1489,6 @@ function renderRecommendationPanel() {
 		const panel = document.getElementById('recommendPanel');
 		if (panel) {
 			panel.classList.remove('is-open');
-			panel.dataset.dismissed = '';
 		}
 		updateRecommendFab();
 		return;
@@ -1612,7 +1611,31 @@ function updateDecoStudioAvailability() {
 		recommendButton.setAttribute('aria-disabled', String(disabled));
 	}
 	if (disabled) closeDecoStudio();
+
+	// update tooltip fixed-position vars when disabled so it can escape overflow clipping
+	try {
+		const btn = document.getElementById('decoStudioOpen');
+		if (btn && disabled) {
+			setDecoTooltipFixedPosition(btn);
+			document.documentElement.classList.add('deco-tooltip-fixed');
+		} else {
+			document.documentElement.classList.remove('deco-tooltip-fixed');
+		}
+	} catch (e) { /* ignore */ }
 }
+
+function setDecoTooltipFixedPosition(btn) {
+    const rect = btn.getBoundingClientRect();
+    const top = rect.top + rect.height / 2;
+    const left = rect.left - 12; // place tooltip to left of button
+    document.documentElement.style.setProperty('--deco-tooltip-top', `${top}px`);
+    document.documentElement.style.setProperty('--deco-tooltip-left', `${left}px`);
+}
+
+window.addEventListener('resize', () => {
+    const btn = document.getElementById('decoStudioOpen');
+    if (btn && btn.getAttribute('aria-disabled') === 'true') setDecoTooltipFixedPosition(btn);
+});
 
 function bindFilterEvents() {
 	const panelBlocks = document.getElementById('panelBlocks') || document;
