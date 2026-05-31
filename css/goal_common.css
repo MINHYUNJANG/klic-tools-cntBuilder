@@ -734,12 +734,6 @@
 }
 
 
-.canvas-tool-fab[aria-disabled="true"]::before,
-.canvas-tool-fab[aria-disabled="true"]::after {
-	display: none;
-}
-
-
 .canvas-tool-fab i {
 	font-size: 1.7rem;
 }
@@ -754,8 +748,8 @@
 	background: #ececf2;
 }
 
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab {
+body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab,
+body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab {
 	opacity: 0.45;
 	cursor: not-allowed;
 	animation: none;
@@ -767,8 +761,8 @@ body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab {
 	display: none !important;
 }
 
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab:hover,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab:hover {
+body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab:hover,
+body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab:hover {
 	border-color: rgba(29, 32, 136, 0.18);
 	background: #fff;
 }
@@ -785,42 +779,6 @@ body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab[
 	position: relative;
 }
 
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab.is-disabled::after,
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab[aria-disabled="true"]::after,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab.is-disabled::after,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab[aria-disabled="true"]::after {
-	content: attr(aria-label);
-	position: absolute;
-	right: calc(100% + 12px);
-	top: 50%;
-	transform: translateY(-50%);
-	background: rgba(0,0,0,0.85);
-	color: #fff;
-	padding: 6px 10px;
-	border-radius: 6px;
-	white-space: nowrap;
-	font-size: 13px;
-	z-index: 120;
-	box-shadow: 0 6px 18px rgba(0,0,0,0.28);
-	opacity: 1;
-	pointer-events: auto;
-}
-
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab.is-disabled::before,
-body[data-preview-device="tablet"]:not(.preview-mode) .canvas-tool-fab.deco-fab[aria-disabled="true"]::before,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab.is-disabled::before,
-body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab[aria-disabled="true"]::before {
-	content: "";
-	position: absolute;
-	right: calc(100% + 6px);
-	top: 50%;
-	transform: translateY(-50%);
-	border: 6px solid transparent;
-	border-left-color: rgba(0,0,0,0.85);
-	z-index: 121;
-	opacity: 1;
-}
-
 /* When JS sets --deco-tooltip-top/left and adds .deco-tooltip-fixed, use fixed positioning
    to escape overflow clipping and place tooltip exactly next to the button. */
 .deco-tooltip-fixed .deco-fab[aria-disabled="true"]::after {
@@ -831,9 +789,16 @@ body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab[
 }
 .deco-tooltip-fixed .deco-fab[aria-disabled="true"]::before {
 	position: fixed;
-	top: calc(var(--deco-tooltip-top));
-	left: calc(var(--deco-tooltip-left) + 6px);
+	top: var(--deco-tooltip-top);
+	left: calc(var(--deco-tooltip-left) + 12px);
 	transform: translate(-100%, -50%) rotate(45deg);
+}
+
+/* Explicit hover-triggered visibility class applied by JS */
+.deco-tooltip-hover .deco-fab[aria-disabled="true"]::after,
+.deco-tooltip-hover .deco-fab[aria-disabled="true"]::before {
+	opacity: 1;
+	pointer-events: auto;
 }
 
 @keyframes deco-fab-pulse {
@@ -849,8 +814,8 @@ body[data-preview-device="mobile"]:not(.preview-mode) .canvas-tool-fab.deco-fab[
 	z-index: 85;
 	display: flex;
 	flex-direction: column;
-	width: 430px;
-	max-width: min(430px, 100vw);
+	width: 350px;
+	max-width: min(350px, 100vw);
 	border-left: 1px solid var(--line);
 	background: #fff;
 	box-shadow: -14px 0 32px rgba(0, 0, 0, 0.12);
