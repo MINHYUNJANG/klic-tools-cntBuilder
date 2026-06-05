@@ -1,0 +1,13 @@
+{
+  "addDirection": "column",
+  "templateFilters": ["tab"],
+  "tabDefaults": {
+    "items": [
+      {"text": "1차 탭 : Active", "type": "normal"},
+      {"text": "1차 탭 : Hover", "type": "normal"},
+      {"text": "1차 탭 : Enable", "type": "normal"},
+      {"text": "1차 탭 : Focus", "type": "new_window"}
+    ],
+    "cols": "4"
+  }
+}

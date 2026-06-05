@@ -191,6 +191,9 @@ input.mx-w40 {width: 100%; max-width: 40rem;}
 .prosess-st.verti > li > .tit{ flex: 1;}
 .prosess-st.verti > li > .inr{ flex: 3; min-width: 0; border-radius: var(--box-radius); border:1px solid var(--color-gray-line);}
 
+/* Prosess : tit p 태그 스타일 */
+.prosess-st > li > .tit p{ display: block; width: 100%; font-size: 0.8rem; text-align: center; opacity: 0.85; }
+
 /* Prosess : 가로형 col */
 .prosess-st.horiz.col-6 li{ width: calc((100% - 10rem)/6);}
 .prosess-st.horiz.col-5 li{ width: calc((100% - 8rem)/5);}
@@ -225,15 +228,6 @@ input.mx-w40 {width: 100%; max-width: 40rem;}
 /* Accordion : size : disabled */
 .accordion-st > ul > li.dis { opacity: 0.5;}
 .accordion-st > ul > li.dis > button.tit:before{content: "\F1AF";}
-
-/* Discloser */
-.discloser-st > button.tit{ position:relative; display: block; width: 100%; text-align: left; font-size: 0.9rem; padding-left: 1.5rem;}
-.discloser-st > button.tit:before{ content:"\EA4E"; position: absolute; left: 0; top:calc(50% - 0.5rem); width: 1rem; height: 1rem; line-height: 1rem; text-align: center; font-family: 'remixicon'; border-radius: 50%; color: var(--color-primary); background: var(--color-tertiary);}
-.discloser-st > .cntnts{ display: none; background:var(--color-tertiary); padding: var(--box-inr-padding); margin-top: 0.4rem;}
-.discloser-st.on > button.tit{ font-weight: 700; }
-.discloser-st.on > button.tit:before{ transform: rotate(180deg);}
-.discloser-st > button:focus,
-.discloser-st > button:focus-visible{ outline : 2px dashed #333;}
 
 /* Discloser */
 .discloser-st > button.tit{ position:relative; display: block; width: 100%; text-align: left; font-size: 0.9rem; padding-left: 1.5rem;}

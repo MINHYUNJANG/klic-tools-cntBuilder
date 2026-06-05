@@ -63,7 +63,6 @@ const state = {
 	overlays: [],
 	customDecorations: [],
 	undoStack: [],
-	canvasWidth: '1200',
 	previewDevice: 'pc'
 };
 
@@ -135,8 +134,22 @@ function cloneData(data) {
 	return JSON.parse(JSON.stringify(data));
 }
 
-// 혼합 블록 내부 참조 해석 (복합 ID: "outerBlockId::inner::idx")
+// 혼합 블록 내부 참조 해석 (복합 ID: "outerBlockId::inner::idx" 또는 "outerBlockId::pstep::stepIdx::inner::innerIdx")
 function resolveMixInnerRef(blockId) {
+	// process-02 step inner ref: "blockId::pstep::N::inner::M"
+	const mp = typeof blockId === 'string' && blockId.match(/^(.+)::pstep::(\d+)::inner::(\d+)$/);
+	if (mp) {
+		const outerBlock = state.blocks.find(b => b.id === mp[1]);
+		if (!outerBlock) return null;
+		const stepIdx = parseInt(mp[2], 10);
+		const innerIdx = parseInt(mp[3], 10);
+		const item = outerBlock.items?.[stepIdx];
+		if (!item || !Array.isArray(item.innerBlocks)) return null;
+		const innerBlock = item.innerBlocks[innerIdx];
+		if (!innerBlock) return null;
+		return { outerBlock, innerIdx, innerBlock };
+	}
+	// mix container inner ref: "blockId::inner::N"
 	const m = typeof blockId === 'string' && blockId.match(/^(.+)::inner::(\d+)$/);
 	if (!m) return null;
 	const outerBlock = state.blocks.find(b => b.id === m[1]);
@@ -296,6 +309,8 @@ function stripEditorAttributes(root) {
 	root.querySelectorAll('.add-row-wrap').forEach(element => element.classList.remove('add-row-wrap'));
 	root.querySelectorAll('.block-item').forEach(element => element.classList.remove('block-item'));
 	root.querySelectorAll('[data-box-img]').forEach(element => element.removeAttribute('data-box-img'));
+	root.querySelectorAll('[data-tab-block-id]').forEach(element => element.removeAttribute('data-tab-block-id'));
+	root.querySelectorAll('[data-tab-item-idx]').forEach(element => element.removeAttribute('data-tab-item-idx'));
 }
 
 function renderTemplateElement(template, item, block = null, columnIndex = null, editable = false) {
@@ -544,6 +559,8 @@ async function loadHtmlTemplate(path) {
 	const isInline = !!config.inline;
 	const inlineHtml = config.inlineHtml || '';
 	const isSmartInline = !!config.smartInline;
+	const tabDefaults = config.tabDefaults || null;
+	const accordionDefaults = config.accordionDefaults || null;
 
 	return {
 		id,
@@ -555,6 +572,8 @@ async function loadHtmlTemplate(path) {
 		isInline,
 		inlineHtml,
 		isSmartInline,
+		tabDefaults,
+		accordionDefaults,
 		element,
 		addRowWrap,
 		isRootWrap,
@@ -762,6 +781,31 @@ function createBlock(type) {
 	// list 블록: rows 구조 초기화
 	if (templateCategories[type] === 'list') {
 		ensureListRows(block);
+	}
+	// tab 블록: tabItems / tabCols 초기화
+	if (templateCategories[type] === 'tab' && template.tabDefaults) {
+		block.tabItems = cloneData(template.tabDefaults.items);
+		block.tabCols = template.tabDefaults.cols || '4';
+	}
+	// accordion 블록: accordionItems / accordionSize 초기화
+	if (templateCategories[type] === 'accordion' && template.accordionDefaults) {
+		block.accordionItems = cloneData(template.accordionDefaults.items);
+		block.accordionSize = template.accordionDefaults.size || '';
+	}
+	// discloser 블록: discloserTitle / discloserContent 초기화
+	if (templateCategories[type] === 'discloser' && template.discloserDefaults) {
+		block.discloserTitle = template.discloserDefaults.title || 'Discloser';
+		block.discloserContent = template.discloserDefaults.content || '';
+	}
+	// process 블록: 4개 기본 단계 초기화
+	if (templateCategories[type] === 'process') {
+		block.columns = 4;
+		block.items = [
+			{ title: '단계 1', sub: '설명', style: createStyleForType(type), innerBlocks: [] },
+			{ title: '단계 2', sub: '설명', style: createStyleForType(type), innerBlocks: [] },
+			{ title: '단계 3', sub: '설명', style: createStyleForType(type), innerBlocks: [] },
+			{ title: '단계 4', sub: '', style: createStyleForType(type), innerBlocks: [] }
+		];
 	}
 	return block;
 }
@@ -1095,6 +1139,55 @@ function renderPropsListRows(block) {
 	// 이벤트는 컨테이너 위임 방식으로 처리 (initBlockPropsPanelRowDelegation에서 등록)
 }
 
+function renderPropsTabItems(block) {
+	const container = document.getElementById('propsTabItemsContainer');
+	if (!container) return;
+	const items = block.tabItems || [];
+	const TAB_TYPE_LABELS = { normal: '일반', new_window: '새창', disabled: '비활성' };
+	container.innerHTML = items.map((item, idx) => {
+		const label = item.text ? item.text.slice(0, 16) : `탭 ${idx + 1}`;
+		const typeLabel = TAB_TYPE_LABELS[item.type] || '일반';
+		const canRemove = items.length > 1;
+		return `<div class="props-list-row" data-tab-props-idx="${idx}">
+			<span class="props-list-row-text">${label}</span>
+			<select class="props-select props-tab-type-select" data-tab-type-idx="${idx}" data-block-id="${block.id}" style="width:5rem;flex-shrink:0">
+				<option value="normal"${item.type === 'normal' ? ' selected' : ''}>일반</option>
+				<option value="new_window"${item.type === 'new_window' ? ' selected' : ''}>새창</option>
+				<option value="disabled"${item.type === 'disabled' ? ' selected' : ''}>비활성</option>
+			</select>
+			<button type="button" class="props-list-row-remove-btn props-tab-remove-btn" data-tab-remove-idx="${idx}" data-block-id="${block.id}"${canRemove ? '' : ' disabled'}>
+				<i class="ri-subtract-line"></i>
+			</button>
+		</div>`;
+	}).join('');
+}
+
+function renderPropsAccordionItems(block) {
+	const container = document.getElementById('propsAccordionItemsContainer');
+	if (!container) return;
+	const items = block.accordionItems || [];
+	container.innerHTML = items.map((item, idx) => {
+		const canRemove = items.length > 1;
+		const textVal = escapeAttr(item.text || '');
+		const contentVal = escapeHtml(item.content || '');
+		return `<div class="props-list-row" style="flex-wrap:wrap;align-items:flex-start;padding:0.4rem 0.5rem;gap:0.25rem">
+			<span class="props-list-row-dot" style="margin-top:0.35rem;flex-shrink:0"></span>
+			<input type="text" class="props-input props-accordion-text-input" style="flex:1;min-width:0;height:1.5rem"
+				data-block-id="${block.id}" data-item-idx="${idx}"
+				placeholder="메뉴명 입력" value="${textVal}">
+			<label style="display:inline-flex;align-items:center;gap:0.2rem;font-size:0.575rem;flex-shrink:0;cursor:pointer">
+				<input type="checkbox" class="props-accordion-dis-check"
+					data-block-id="${block.id}" data-item-idx="${idx}"${item.disabled ? ' checked' : ''}>
+				비활성
+			</label>
+			${canRemove ? `<button type="button" class="props-list-row-remove-btn props-accordion-remove-btn" data-block-id="${block.id}" data-item-idx="${idx}" title="항목 삭제"><i class="ri-subtract-line"></i></button>` : '<span style="width:1.25rem;flex-shrink:0"></span>'}
+			<textarea class="props-input props-accordion-content-input" style="flex:1 0 100%;min-width:0;width:100%;height:3rem;resize:vertical;margin-top:0.2rem;line-height:1.4"
+				data-block-id="${block.id}" data-item-idx="${idx}"
+				placeholder="내용 입력 (비우면 '내용이 없습니다.' 표시)">${contentVal}</textarea>
+		</div>`;
+	}).join('');
+}
+
 let _propsBlockId = null;
 
 function openBlockProps(blockId) {
@@ -1171,6 +1264,58 @@ function openBlockProps(blockId) {
 		if (isBox05) {
 			const icoSelect = document.getElementById('propBoxIco');
 			if (icoSelect) icoSelect.value = block.icoId || 'ico-box1';
+		}
+	}
+
+	const tabSection = document.getElementById('propsTabSection');
+	if (tabSection) {
+		const isTab = !isMixInnerBlock && templateCategories[block.type] === 'tab';
+		tabSection.style.display = isTab ? '' : 'none';
+		if (isTab) {
+			const colsSelect = document.getElementById('propTabCols');
+			if (colsSelect) colsSelect.value = block.tabCols || '4';
+			renderPropsTabItems(block);
+		}
+	}
+
+	const processSection = document.getElementById('propsProcessSection');
+	if (processSection) {
+		const isProcess = !isMixInnerBlock && templateCategories[block.type] === 'process';
+		processSection.style.display = isProcess ? '' : 'none';
+		if (isProcess) {
+			const isHoriz = block.type === 'process-01';
+			const horizCard = document.getElementById('propsProcessHorizCard');
+			const addStepBtn = document.getElementById('propsAddProcessStep');
+			if (horizCard) horizCard.style.display = isHoriz ? '' : 'none';
+			if (addStepBtn) addStepBtn.style.display = !isHoriz ? '' : 'none';
+			if (isHoriz) {
+				const colsSelect = document.getElementById('propProcessCols');
+				if (colsSelect) colsSelect.value = String(block.items.length);
+			}
+			renderPropsProcessSteps(block);
+		}
+	}
+
+	const accordionSection = document.getElementById('propsAccordionSection');
+	if (accordionSection) {
+		const isAccordion = !isMixInnerBlock && templateCategories[block.type] === 'accordion';
+		accordionSection.style.display = isAccordion ? '' : 'none';
+		if (isAccordion) {
+			const sizeSelect = document.getElementById('propAccordionSize');
+			if (sizeSelect) sizeSelect.value = block.accordionSize || '';
+			renderPropsAccordionItems(block);
+		}
+	}
+
+	const discloserSection = document.getElementById('propsDiscloserSection');
+	if (discloserSection) {
+		const isDiscloser = !isMixInnerBlock && templateCategories[block.type] === 'discloser';
+		discloserSection.style.display = isDiscloser ? '' : 'none';
+		if (isDiscloser) {
+			const titleInput = document.getElementById('propDiscloserTitle');
+			const contentInput = document.getElementById('propDiscloserContent');
+			if (titleInput) titleInput.value = block.discloserTitle || '';
+			if (contentInput) contentInput.value = block.discloserContent || '';
 		}
 	}
 
@@ -1310,6 +1455,182 @@ function initBlockPropsPanel() {
 		});
 	}
 
+	// 탭: 열 수 변경
+	document.getElementById('propTabCols')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'tab') return;
+		pushHistory();
+		block.tabCols = this.value;
+		render();
+	});
+
+	// 절차(가로형): 열 수 변경
+	document.getElementById('propProcessCols')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'process-01') return;
+		pushHistory();
+		block.columns = Number(this.value) || 4;
+		syncBlockItems(block);
+		render();
+		renderPropsProcessSteps(block);
+	});
+
+	// 절차: 단계별 설명(sub) 입력 변경 (위임)
+	document.getElementById('propsProcessStepsContainer')?.addEventListener('change', event => {
+		const input = event.target.closest('.props-process-sub-input');
+		if (!input) return;
+		const blockId = input.dataset.blockId;
+		const stepIdx = Number(input.dataset.stepIdx);
+		const block = state.blocks.find(b => b.id === blockId);
+		if (!block || templateCategories[block.type] !== 'process') return;
+		const item = block.items[stepIdx];
+		if (!item) return;
+		const newSub = input.value.trim();
+		if (item.sub === newSub) return;
+		pushHistory();
+		item.sub = newSub;
+		render();
+	});
+
+	// 절차(세로형): 단계 추가
+	document.getElementById('propsAddProcessStep')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		addProcessStep(_propsBlockId);
+	});
+
+	// 절차(세로형): 단계 삭제 (위임)
+	document.getElementById('propsProcessStepsContainer')?.addEventListener('click', event => {
+		const btn = event.target.closest('.props-process-step-remove-btn');
+		if (!btn || btn.disabled) return;
+		removeProcessStep(btn.dataset.blockId, Number(btn.dataset.stepIdx));
+	});
+
+	// 탭: 항목 추가
+	document.getElementById('propsAddTabItem')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'tab') return;
+		pushHistory();
+		block.tabItems = block.tabItems || [];
+		block.tabItems.push({ text: `탭 ${block.tabItems.length + 1}`, type: 'normal' });
+		render();
+		renderPropsTabItems(block);
+	});
+
+	// 탭: 타입 변경 / 항목 삭제 (위임)
+	document.getElementById('propsTabItemsContainer')?.addEventListener('change', function (e) {
+		const sel = e.target.closest('.props-tab-type-select');
+		if (!sel) return;
+		const idx = Number(sel.dataset.tabTypeIdx);
+		const block = state.blocks.find(b => b.id === sel.dataset.blockId);
+		if (!block || !block.tabItems || !block.tabItems[idx]) return;
+		pushHistory();
+		block.tabItems[idx].type = sel.value;
+		render();
+	});
+	document.getElementById('propsTabItemsContainer')?.addEventListener('click', function (e) {
+		const btn = e.target.closest('.props-tab-remove-btn');
+		if (!btn || btn.disabled) return;
+		const idx = Number(btn.dataset.tabRemoveIdx);
+		const block = state.blocks.find(b => b.id === btn.dataset.blockId);
+		if (!block || !block.tabItems || block.tabItems.length <= 1) return;
+		pushHistory();
+		block.tabItems.splice(idx, 1);
+		render();
+		renderPropsTabItems(block);
+	});
+
+	// 아코디언: 크기 변경
+	document.getElementById('propAccordionSize')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'accordion') return;
+		pushHistory();
+		block.accordionSize = this.value;
+		render();
+	});
+
+	// 아코디언: 항목 추가
+	document.getElementById('propsAddAccordionItem')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'accordion') return;
+		pushHistory();
+		block.accordionItems = block.accordionItems || [];
+		block.accordionItems.push({ text: `메뉴 ${block.accordionItems.length + 1}`, content: '', disabled: false });
+		render();
+		renderPropsAccordionItems(block);
+	});
+
+	// 아코디언: 메뉴명 / 내용 / 비활성 / 삭제 (이벤트 위임)
+	const accordionItemsContainer = document.getElementById('propsAccordionItemsContainer');
+	if (accordionItemsContainer) {
+		accordionItemsContainer.addEventListener('change', event => {
+			const textInput = event.target.closest('.props-accordion-text-input');
+			if (textInput) {
+				const block = state.blocks.find(b => b.id === textInput.dataset.blockId);
+				const idx = Number(textInput.dataset.itemIdx);
+				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
+				pushHistory();
+				block.accordionItems[idx].text = textInput.value;
+				render();
+				return;
+			}
+			const contentInput = event.target.closest('.props-accordion-content-input');
+			if (contentInput) {
+				const block = state.blocks.find(b => b.id === contentInput.dataset.blockId);
+				const idx = Number(contentInput.dataset.itemIdx);
+				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
+				pushHistory();
+				block.accordionItems[idx].content = contentInput.value;
+				render();
+				return;
+			}
+			const disCheck = event.target.closest('.props-accordion-dis-check');
+			if (disCheck) {
+				const block = state.blocks.find(b => b.id === disCheck.dataset.blockId);
+				const idx = Number(disCheck.dataset.itemIdx);
+				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
+				pushHistory();
+				block.accordionItems[idx].disabled = disCheck.checked;
+				render();
+				return;
+			}
+		});
+		accordionItemsContainer.addEventListener('click', event => {
+			const btn = event.target.closest('.props-accordion-remove-btn');
+			if (!btn || btn.disabled) return;
+			const block = state.blocks.find(b => b.id === btn.dataset.blockId);
+			const idx = Number(btn.dataset.itemIdx);
+			if (!block || !block.accordionItems || block.accordionItems.length <= 1) return;
+			pushHistory();
+			block.accordionItems.splice(idx, 1);
+			render();
+			renderPropsAccordionItems(block);
+		});
+	}
+
+	// discloser: 버튼 제목 변경
+	document.getElementById('propDiscloserTitle')?.addEventListener('input', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'discloser') return;
+		block.discloserTitle = this.value;
+		render();
+	});
+
+	// discloser: 내용 변경
+	document.getElementById('propDiscloserContent')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'discloser') return;
+		pushHistory();
+		block.discloserContent = this.value;
+		render();
+	});
+
 	// canvasGrid 변경 감지 → 패널 행 관리 자동 갱신
 	// render()가 canvasGrid.innerHTML을 교체할 때마다 MutationObserver가 마이크로태스크로 실행되어
 	// 모든 render 사이클이 끝난 뒤 안정적으로 패널을 업데이트함
@@ -1318,13 +1639,31 @@ function initBlockPropsPanel() {
 		const panelObserver = new MutationObserver(() => {
 			if (!_propsBlockId) return;
 			const b = resolveBlockForRows(_propsBlockId);
-			if (!b || templateCategories[b.type] !== 'list') return;
-			const listSection = document.getElementById('propsListSection');
-			if (!listSection || listSection.style.display === 'none') return;
-			renderPropsListRows(b);
+			if (!b) return;
+			if (templateCategories[b.type] === 'list') {
+				const listSection = document.getElementById('propsListSection');
+				if (!listSection || listSection.style.display === 'none') return;
+				renderPropsListRows(b);
+			} else if (templateCategories[b.type] === 'tab') {
+				const tabSection = document.getElementById('propsTabSection');
+				if (!tabSection || tabSection.style.display === 'none') return;
+				renderPropsTabItems(b);
+			} else if (templateCategories[b.type] === 'accordion') {
+				const accSection = document.getElementById('propsAccordionSection');
+				if (!accSection || accSection.style.display === 'none') return;
+				renderPropsAccordionItems(b);
+			}
 		});
 		panelObserver.observe(canvasGridEl, { childList: true });
 	}
+
+	// 패널 외부 클릭 시 닫기
+	document.addEventListener('mousedown', e => {
+		const panel = document.getElementById('blockPropsPanel');
+		if (!panel?.classList.contains('is-open')) return;
+		if (panel.contains(e.target)) return;
+		closeBlockProps();
+	});
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
@@ -1335,6 +1674,120 @@ function isMixContainer(type) {
 	if (templateCategories[type] === 'mix') return true;
 	const t = componentTemplates[type];
 	return !!(t && t.element.querySelector('.mix-inner-slot'));
+}
+
+// ── 절차(process) 블록 관련 함수 ─────────────────────────────────────────
+
+function renderPropsProcessSteps(block) {
+	const container = document.getElementById('propsProcessStepsContainer');
+	if (!container) return;
+	const items = block.items || [];
+	const minItems = 2;
+	const isVerti = block.type === 'process-02';
+	container.innerHTML = items.map((item, idx) => {
+		const rawTitle = (item.title || '').replace(/<[^>]+>/g, '').slice(0, 14) || `단계 ${idx + 1}`;
+		const isFin = idx === items.length - 1;
+		const canRemove = isVerti && items.length > minItems;
+		const subVal = (item.sub || '').replace(/<[^>]+>/g, '');
+		return `<div class="props-list-row">
+			<span class="props-list-row-dot"></span>
+			<span class="props-list-row-text" style="flex-shrink:0;min-width:3.5rem">${escapeHtml(rawTitle)}${isFin ? '<em>*</em>' : ''}</span>
+			<input type="text" class="props-input props-process-sub-input" style="flex:1;min-width:0"
+				data-block-id="${block.id}" data-step-idx="${idx}"
+				placeholder="설명 없음" value="${escapeAttr(subVal)}">
+			${canRemove ? `<button type="button" class="props-list-row-remove-btn props-process-step-remove-btn" data-block-id="${block.id}" data-step-idx="${idx}" title="단계 삭제"><i class="ri-subtract-line"></i></button>` : ''}
+		</div>`;
+	}).join('');
+}
+
+function addProcessStep(blockId) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block || templateCategories[block.type] !== 'process') return;
+	pushHistory();
+	block.items.push({
+		title: `단계 ${block.items.length + 1}`,
+		sub: '',
+		style: createStyleForType(block.type),
+		innerBlocks: []
+	});
+	render();
+	openBlockProps(blockId);
+}
+
+function removeProcessStep(blockId, stepIdx) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block || templateCategories[block.type] !== 'process') return;
+	if (block.items.length <= 2) return;
+	pushHistory();
+	block.items.splice(stepIdx, 1);
+	render();
+	openBlockProps(blockId);
+}
+
+function addProcessStepInnerBlock(blockId, stepIdx, innerType) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+	const item = block.items[stepIdx];
+	if (!item) return;
+	const innerTemplate = componentTemplates[innerType];
+	if (!innerTemplate) return;
+	pushHistory();
+	const innerData = innerTemplate.getDefaultData ? innerTemplate.getDefaultData() : {};
+	if (!Array.isArray(item.innerBlocks)) item.innerBlocks = [];
+	const newIbIdx = item.innerBlocks.length;
+	item.innerBlocks.push({
+		type: innerType,
+		marginBottom: 10,
+		items: [{ ...cloneData(innerData), style: createStyleForType(innerType) }]
+	});
+	if (templateCategories[innerType] === 'list') {
+		ensureListRows({ id: `${blockId}::pstep::${stepIdx}::inner::${newIbIdx}`, type: innerType, items: item.innerBlocks[newIbIdx].items });
+	}
+	render();
+	selectBlock(blockId);
+}
+
+function addProcessStepInnerBlockFromExisting(blockId, stepIdx, sourceBlockId) {
+	const block = state.blocks.find(b => b.id === blockId);
+	const sourceBlock = state.blocks.find(b => b.id === sourceBlockId);
+	if (!block || !sourceBlock) return;
+	if (!MIX_ALLOWED.has(templateCategories[sourceBlock.type])) return;
+	const item = block.items[stepIdx];
+	if (!item) return;
+	pushHistory();
+	if (!Array.isArray(item.innerBlocks)) item.innerBlocks = [];
+	item.innerBlocks.push({
+		type: sourceBlock.type,
+		marginBottom: sourceBlock.marginBottom ?? 10,
+		items: cloneData(sourceBlock.items || [])
+	});
+	state.blocks = state.blocks.filter(b => b.id !== sourceBlockId);
+	render();
+	selectBlock(blockId);
+}
+
+function removeProcessStepInnerBlock(blockId, stepIdx, innerIdx) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+	const item = block.items[stepIdx];
+	if (!item || !Array.isArray(item.innerBlocks)) return;
+	pushHistory();
+	item.innerBlocks.splice(innerIdx, 1);
+	render();
+	selectBlock(blockId);
+}
+
+function moveProcessStepInnerBlock(blockId, stepIdx, fromIdx, toIdx) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+	const item = block.items[stepIdx];
+	if (!item || !Array.isArray(item.innerBlocks)) return;
+	if (fromIdx < 0 || toIdx < 0 || fromIdx >= item.innerBlocks.length || toIdx >= item.innerBlocks.length) return;
+	pushHistory();
+	const [moved] = item.innerBlocks.splice(fromIdx, 1);
+	item.innerBlocks.splice(toIdx, 0, moved);
+	render();
+	selectBlock(blockId);
 }
 
 // 혼합 블록에 내부 블록 추가
@@ -1505,9 +1958,11 @@ function syncBlockItems(block) {
 	const template = componentTemplates[block.type];
 	const source = block.items[0] || (template.getDefaultData ? template.getDefaultData() : {});
 	const hasTitleListWrap = templateCategories[block.type] === 'title-list' && template.element?.querySelector('.list-wrap');
+	const isProcess = templateCategories[block.type] === 'process';
 	while (block.items.length < block.columns) {
 		const newItem = { ...cloneData(source), style: createStyleForType(block.type) };
 		if (hasTitleListWrap) newItem.listBlock = null;
+		if (isProcess) newItem.innerBlocks = [];
 		block.items.push(newItem);
 	}
 	if (block.items.length > block.columns) block.items = block.items.slice(0, block.columns);
@@ -2326,6 +2781,16 @@ function render() {
 				}
 			});
 		}
+		// process 블록: 각 step의 inner list blocks rows 초기화
+		if (templateCategories[block.type] === 'process') {
+			block.items.forEach((item, stepIdx) => {
+				(item.innerBlocks || []).forEach((ib, ibIdx) => {
+					if (templateCategories[ib.type] === 'list') {
+						ensureListRows({ id: `${block.id}::pstep::${stepIdx}::inner::${ibIdx}`, type: ib.type, items: ib.items });
+					}
+				});
+			});
+		}
 	});
 	const { hasBlocks, hasOverlays } = syncCanvasPresence();
 	canvasGrid.className = hasBlocks ? 'canvas-grid' : 'canvas-grid is-empty';
@@ -2370,10 +2835,70 @@ function render() {
 			});
 			const icoSelect = document.getElementById('propBoxIco');
 			if (icoSelect && resolvedBlock.type === 'box-05') icoSelect.value = resolvedBlock.icoId || 'ico-box1';
+			const processColsSelect = document.getElementById('propProcessCols');
+			if (processColsSelect && resolvedBlock.type === 'process-01') {
+				processColsSelect.value = String(resolvedBlock.items.length);
+			}
+			// process sub 입력 필드 동기화 (포커스 중인 필드는 건드리지 않음)
+			if (templateCategories[resolvedBlock.type] === 'process') {
+				const stepsContainer = document.getElementById('propsProcessStepsContainer');
+				if (stepsContainer) {
+					stepsContainer.querySelectorAll('.props-process-sub-input').forEach(input => {
+						if (document.activeElement === input) return;
+						const stepIdx = Number(input.dataset.stepIdx);
+						const item = resolvedBlock.items[stepIdx];
+						if (item) input.value = (item.sub || '').replace(/<[^>]+>/g, '');
+					});
+				}
+			}
 		} else {
 			closeBlockProps();
 		}
 	}
+	initCanvasReactTab();
+	initCanvasAccordion();
+}
+
+function initCanvasAccordion() {
+	if (typeof AccordionStyle === 'function') AccordionStyle();
+}
+
+function initCanvasReactTab() {
+	if (typeof $ === 'undefined') return;
+	// 빌더에서는 window 너비가 아닌 디바이스 설정 기준으로 reactTab 적용
+	var isReact = state.previewDevice === 'tablet' || state.previewDevice === 'mobile';
+
+	$(canvasGrid).find('.tab-st[class*="depth"]:not(".not-js")').each(function () {
+		var $tab = $(this);
+
+		// reactTab 클래스 적용/제거
+		if (isReact) {
+			$tab.addClass('reactTab');
+		} else {
+			$tab.removeClass('reactTab').find('> ul').removeAttr('style');
+		}
+
+		// 기존 .select 제거 후 재생성 (render() / 디바이스 전환마다 재실행)
+		$tab.find('> a.select').remove();
+		if (!isReact) return;
+
+		// con_com.js의 reactTab()과 동일하게 .on li의 <a>를 복사해서 .select 생성
+		var $onLi = $tab.find('> ul > li.on');
+		if (!$onLi.length) return;
+		var $linkCopy = $onLi.find('> a').clone().attr('class', 'select');
+		$onLi.attr('title', $onLi.text().trim() + ' 선택된 페이지');
+		$tab.find('> ul').before($linkCopy);
+
+		// 직접 클릭 핸들러 바인딩
+		// (block-item의 stopPropagation 때문에 document 위임 방식이 동작하지 않으므로 직접 등록)
+		$linkCopy.on('click', function (e) {
+			e.preventDefault();
+			e.stopPropagation(); // block-item 선택 이벤트 차단
+			var $tabBox = $tab.find('> ul');
+			$tabBox.slideToggle(200);
+			$(this).toggleClass('on');
+		});
+	});
 }
 
 function renderBuilderBlock(block, idx = 0, total = 1) {
@@ -2528,8 +3053,10 @@ function renderRepeatedColumns(block) {
 		el.dataset.columnIndex = '0';
 		const listFirstChild = el.firstElementChild;
 		if (listFirstChild) {
-			listFirstChild.classList.remove('al', 'ac', 'ar');
-			if (block.blockAlign) listFirstChild.classList.add(block.blockAlign);
+			if (block.blockAlign) {
+				listFirstChild.classList.remove('al', 'ac', 'ar');
+				listFirstChild.classList.add(block.blockAlign);
+			}
 		}
 		return elementToHtml(el);
 	}
@@ -2565,8 +3092,10 @@ function buildColumnBlock(template, block, editable) {
 
 	const firstChild = outer.firstElementChild;
 	if (firstChild) {
-		firstChild.classList.remove('al', 'ac', 'ar');
-		if (block.blockAlign) firstChild.classList.add(block.blockAlign);
+		if (block.blockAlign) {
+			firstChild.classList.remove('al', 'ac', 'ar');
+			firstChild.classList.add(block.blockAlign);
+		}
 	}
 
 	const addRowWrapEl = outer.querySelector('.add-row-wrap');
@@ -2745,6 +3274,159 @@ function buildColumnBlock(template, block, editable) {
 		const svg = ICO_SVG_MAP[icoId];
 		if (svg) icoEl.innerHTML = svg;
 	});
+
+	// process 블록: <ul> 에 li 항목 주입 + fin 클래스 + col 클래스(가로형)
+	if (block && templateCategories[block.type] === 'process') {
+		const ul = outer.querySelector('.prosess-st');
+		if (ul) {
+			const isHoriz = ul.classList.contains('horiz');
+			const steps = block.items || [];
+			if (isHoriz) {
+				ul.classList.remove('col-2', 'col-3', 'col-4', 'col-5', 'col-6');
+				if (steps.length >= 2 && steps.length <= 6) ul.classList.add(`col-${steps.length}`);
+			}
+			ul.innerHTML = steps.map((item, idx) => {
+				const isFin = idx === steps.length - 1;
+				const finClass = isFin ? ' class="fin"' : '';
+				const titleVal = item.title || '';
+				const subVal = item.sub || '';
+				let titleHtml, subHtml;
+				if (editable) {
+					titleHtml = `<h6 data-edit-field="title" data-block-id="${escapeAttr(block.id)}" data-column-index="${idx}">${titleVal}</h6>`;
+					subHtml = subVal ? `<p data-edit-field="sub" data-block-id="${escapeAttr(block.id)}" data-column-index="${idx}">${subVal}</p>` : '';
+				} else {
+					titleHtml = `<h6>${titleVal}</h6>`;
+					subHtml = subVal ? `<p>${subVal}</p>` : '';
+				}
+				let inrHtml = '';
+				if (!isHoriz && !isFin) {
+					const innerBlocks = item.innerBlocks || [];
+					if (editable) {
+						const slotId = `${block.id}::pstep::${idx}`;
+						const isEmpty = innerBlocks.length === 0;
+						let innerItemsHtml;
+						if (isEmpty) {
+							innerItemsHtml = '<div class="mix-slot-placeholder"><i class="ri-add-circle-line"></i> 디자인 블록을 드래그해서 넣으세요.</div>';
+						} else {
+							innerItemsHtml = innerBlocks.map((ib, ibIdx) => {
+								const innerTemplate = componentTemplates[ib.type];
+								if (!innerTemplate) return '';
+								const innerBlockId = `${slotId}::inner::${ibIdx}`;
+								const fakeBlock = { id: innerBlockId, type: ib.type, columns: ib.items.length || 1, items: ib.items };
+								const isListInner = templateCategories[ib.type] === 'list';
+								let innerHtml;
+								if (isListInner && fakeBlock.items[0]?.rows) {
+									const listItem = fakeBlock.items[0];
+									const listEl = renderListDynamically(fakeBlock, listItem, 0, innerTemplate.element, true);
+									listEl.setAttribute('style', columnStyleVars(listItem));
+									listEl.classList.add('block-item');
+									listEl.dataset.blockId = innerBlockId;
+									listEl.dataset.columnIndex = '0';
+									innerHtml = elementToHtml(listEl);
+								} else {
+									innerHtml = buildColumnBlock(innerTemplate, fakeBlock, true);
+								}
+								const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
+								const propsBtn = isListInner
+									? `<button type="button" class="mix-inner-props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
+									: '';
+								return `<div class="mix-inner-item pstep-inner-item" draggable="true" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}" data-pstep-inner-idx="${ibIdx}"${mbStyle}>
+									<div class="mix-inner-drag-handle" title="드래그해서 순서 변경"><i class="ri-draggable"></i></div>
+									<button type="button" class="mix-inner-remove pstep-inner-remove" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}" data-pstep-inner-idx="${ibIdx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>
+									${propsBtn}
+									${innerHtml}
+								</div>`;
+							}).join('');
+						}
+						inrHtml = `<div class="inr process-inner-slot${isEmpty ? ' mix-slot-empty' : ''}" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}">${innerItemsHtml}</div>`;
+					} else {
+						let innerContent = '';
+						if (innerBlocks.length > 0) {
+							innerContent = innerBlocks.map((ib, ibIdx) => {
+								const innerTemplate = componentTemplates[ib.type];
+								if (!innerTemplate) return '';
+								const fakeBlock = { id: `${block.id}-p${idx}-i${ibIdx}`, type: ib.type, columns: ib.items.length || 1, items: ib.items };
+								const isListInner = templateCategories[ib.type] === 'list';
+								let content;
+								if (isListInner && fakeBlock.items[0]?.rows) {
+									const listItem = fakeBlock.items[0];
+									const listEl = renderListDynamically(fakeBlock, listItem, 0, innerTemplate.element, false);
+									content = elementToHtml(listEl);
+								} else {
+									const innerEl = buildColumnBlock(innerTemplate, fakeBlock, false);
+									content = typeof innerEl === 'string' ? innerEl : elementToHtml(innerEl);
+								}
+								const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
+								return `<div class="mix-inner-item"${mbStyle}>${content}</div>`;
+							}).join('');
+						}
+						inrHtml = `<div class="inr">${innerContent}</div>`;
+					}
+				}
+				return `<li${finClass}><div class="tit">${titleHtml}${subHtml}</div>${inrHtml}</li>`;
+			}).join('');
+		}
+	}
+
+	// tab 블록: <ul> 에 li 항목 주입 + col 클래스 적용
+	if (block && templateCategories[block.type] === 'tab') {
+		const tabContainer = outer.querySelector('.tab-st');
+		const tabUl = tabContainer ? tabContainer.querySelector('ul') : null;
+		if (tabContainer && tabUl) {
+			const tabItems = block.tabItems || [];
+			const tabCols = block.tabCols || '4';
+			tabContainer.classList.remove('col-2', 'col-3', 'col-4', 'col-5');
+			tabContainer.classList.add(`col-${tabCols}`);
+
+			tabUl.innerHTML = tabItems.map((item, idx) => {
+				const isFirst = idx === 0;
+				const isDisabled = item.type === 'disabled';
+				const isNewWindow = item.type === 'new_window';
+				const liClass = isFirst ? ' class="on"' : '';
+				const liTitle = isFirst ? ` title="${escapeAttr(item.text)} 선택된 페이지"` : '';
+				const aTarget = isNewWindow ? ` target="_blank"` : '';
+				const aTitle = isNewWindow ? ` title="새창"` : '';
+				const aDis = isDisabled ? ` class="dis"` : '';
+				const tabIdxAttr = editable ? ` data-tab-block-id="${escapeAttr(block.id)}" data-tab-item-idx="${idx}"` : '';
+				return `<li${liClass}${liTitle}><a href=""${aTarget}${aTitle}${aDis}${tabIdxAttr}>${escapeHtml(item.text)}</a></li>`;
+			}).join('');
+		}
+	}
+
+	// accordion 블록: <ul>에 li 항목 주입 + 사이즈 클래스 적용
+	if (block && templateCategories[block.type] === 'accordion') {
+		const accordionContainer = outer.querySelector('.accordion-st');
+		const accordionUl = accordionContainer ? accordionContainer.querySelector('ul') : null;
+		if (accordionContainer && accordionUl) {
+			const accordionItems = block.accordionItems || [];
+			const accordionSize = block.accordionSize || '';
+			accordionContainer.classList.remove('size-md', 'size-lg');
+			if (accordionSize) accordionContainer.classList.add(accordionSize);
+
+			accordionUl.innerHTML = accordionItems.map((item) => {
+				const isDisabled = !!item.disabled;
+				const liClass = isDisabled ? ' class="dis"' : '';
+				const titleText = escapeHtml(item.text || '');
+				const rawContent = item.content ? item.content.trim() : '';
+				const contentHtml = rawContent ? formatMultiline(rawContent) : '내용이 없습니다.';
+				return `<li${liClass}><button class="tit" type="button">${titleText}</button><div class="cntnts">${contentHtml}</div></li>`;
+			}).join('');
+		}
+	}
+
+	// discloser 블록: 제목과 내용 주입
+	if (block && templateCategories[block.type] === 'discloser') {
+		const discloserEl = outer.querySelector('.discloser-st');
+		if (discloserEl) {
+			const titleBtn = discloserEl.querySelector(':scope > button.tit');
+			const cntnts = discloserEl.querySelector(':scope > .cntnts');
+			if (titleBtn) titleBtn.textContent = block.discloserTitle || 'Discloser';
+			if (cntnts) {
+				const rawContent = (block.discloserContent || '').trim();
+				cntnts.innerHTML = rawContent ? formatMultiline(rawContent) : '내용이 없습니다.';
+			}
+		}
+	}
 
 	if (!editable) stripEditorAttributes(outer);
 	return editable ? elementToHtml(outer) : outer;
@@ -3126,8 +3808,11 @@ function bindRenderedEvents() {
 		item.addEventListener('click', event => {
 			if (document.body.classList.contains('preview-mode')) return;
 			if (event.target.closest('[contenteditable="true"]')) return;
-			// 편집 모드에서 <a> 태그 기본 네비게이션 방지
-			if (event.target.closest('a')) event.preventDefault();
+			// 새창링크(target="_blank")와 다운링크(download 속성)만 캔버스에서 차단
+			const anchor = event.target.closest('a');
+			if (anchor && (anchor.getAttribute('target') === '_blank' || anchor.hasAttribute('download'))) {
+				event.preventDefault();
+			}
 			event.stopPropagation();
 			selectBlockItem(item.dataset.blockId, Number(item.dataset.columnIndex));
 		});
@@ -3153,6 +3838,10 @@ function bindRenderedEvents() {
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
 	});
+	// 탭 항목 텍스트 인라인 편집
+	document.querySelectorAll('[data-tab-block-id]').forEach(aEl => {
+		aEl.addEventListener('dblclick', startTabTextEdit);
+	});
 	document.querySelectorAll('[data-edit-field="icon"]').forEach(field => {
 		field.addEventListener('dblclick', event => {
 			if (document.body.classList.contains('preview-mode')) return;
@@ -3164,6 +3853,117 @@ function bindRenderedEvents() {
 			openIconDrawer(catIndex, item.dataset.blockId, Number(item.dataset.columnIndex), groupId);
 		});
 	});
+	// 절차(세로형) process inner slot 드래그 이벤트
+	document.querySelectorAll('.process-inner-slot[data-pstep-block-id]').forEach(slot => {
+		const pBlockId = slot.dataset.pstepBlockId;
+		const pStepIdx = Number(slot.dataset.pstepIdx);
+		slot.addEventListener('dragover', event => {
+			if (document.body.classList.contains('preview-mode')) return;
+			const payload = state.dragPayload;
+			if (payload.startsWith('new-block:')) {
+				if (!MIX_ALLOWED.has(templateCategories[payload.replace('new-block:', '')])) return;
+			} else if (payload.startsWith('existing-block:')) {
+				const srcBlock = state.blocks.find(b => b.id === payload.replace('existing-block:', ''));
+				if (!srcBlock || !MIX_ALLOWED.has(templateCategories[srcBlock.type])) return;
+			} else {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = payload.startsWith('new-block:') ? 'copy' : 'move';
+			slot.classList.add('mix-slot-over');
+		});
+		slot.addEventListener('dragleave', event => {
+			if (!slot.contains(event.relatedTarget)) slot.classList.remove('mix-slot-over');
+		});
+		slot.addEventListener('drop', event => {
+			if (document.body.classList.contains('preview-mode')) return;
+			const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
+			slot.classList.remove('mix-slot-over');
+			if (payload.startsWith('new-block:')) {
+				const newType = payload.replace('new-block:', '');
+				if (!MIX_ALLOWED.has(templateCategories[newType])) return;
+				event.preventDefault();
+				event.stopPropagation();
+				clearDropIndicators();
+				state.dragPayload = '';
+				addProcessStepInnerBlock(pBlockId, pStepIdx, newType);
+			} else if (payload.startsWith('existing-block:')) {
+				const srcId = payload.replace('existing-block:', '');
+				const srcBlock = state.blocks.find(b => b.id === srcId);
+				if (!srcBlock || !MIX_ALLOWED.has(templateCategories[srcBlock.type])) return;
+				event.preventDefault();
+				event.stopPropagation();
+				clearDropIndicators();
+				state.dragPayload = '';
+				addProcessStepInnerBlockFromExisting(pBlockId, pStepIdx, srcId);
+			}
+		});
+	});
+
+	// 절차(세로형) inner item 제거 버튼
+	document.querySelectorAll('.pstep-inner-remove').forEach(btn => {
+		btn.addEventListener('click', event => {
+			event.stopPropagation();
+			removeProcessStepInnerBlock(
+				btn.dataset.pstepBlockId,
+				Number(btn.dataset.pstepIdx),
+				Number(btn.dataset.pstepInnerIdx)
+			);
+		});
+	});
+
+	// 절차(세로형) inner item 드래그 재정렬
+	let _pstepDragFrom = null;
+	document.querySelectorAll('.pstep-inner-item[draggable]').forEach(item => {
+		item.addEventListener('dragstart', event => {
+			if (event.target.closest('button, input, select, textarea, [contenteditable="true"]')) {
+				event.preventDefault();
+				return;
+			}
+			_pstepDragFrom = {
+				blockId: item.dataset.pstepBlockId,
+				stepIdx: Number(item.dataset.pstepIdx),
+				fromIdx: Number(item.dataset.pstepInnerIdx)
+			};
+			state.dragPayload = `pstep-reorder:${item.dataset.pstepBlockId}:${item.dataset.pstepIdx}:${item.dataset.pstepInnerIdx}`;
+			event.dataTransfer.effectAllowed = 'move';
+			event.stopPropagation();
+			requestAnimationFrame(() => item.classList.add('mix-item-dragging'));
+		});
+		item.addEventListener('dragend', () => {
+			item.classList.remove('mix-item-dragging');
+			document.querySelectorAll('.mix-inner-item.mix-item-over').forEach(el => el.classList.remove('mix-item-over'));
+			if (state.dragPayload.startsWith('pstep-reorder:')) state.dragPayload = '';
+			_pstepDragFrom = null;
+		});
+		item.addEventListener('dragover', event => {
+			if (!state.dragPayload.startsWith('pstep-reorder:')) return;
+			if (_pstepDragFrom?.blockId !== item.dataset.pstepBlockId) return;
+			if (_pstepDragFrom?.stepIdx !== Number(item.dataset.pstepIdx)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = 'move';
+			document.querySelectorAll('.mix-inner-item.mix-item-over').forEach(el => el.classList.remove('mix-item-over'));
+			item.classList.add('mix-item-over');
+		});
+		item.addEventListener('dragleave', event => {
+			if (!item.contains(event.relatedTarget)) item.classList.remove('mix-item-over');
+		});
+		item.addEventListener('drop', event => {
+			if (!state.dragPayload.startsWith('pstep-reorder:')) return;
+			event.preventDefault();
+			event.stopPropagation();
+			item.classList.remove('mix-item-over');
+			const toIdx = Number(item.dataset.pstepInnerIdx);
+			if (_pstepDragFrom && _pstepDragFrom.stepIdx === Number(item.dataset.pstepIdx) && _pstepDragFrom.fromIdx !== toIdx) {
+				moveProcessStepInnerBlock(_pstepDragFrom.blockId, _pstepDragFrom.stepIdx, _pstepDragFrom.fromIdx, toIdx);
+			}
+			state.dragPayload = '';
+			_pstepDragFrom = null;
+		});
+	});
+
 	// 혼합 블록 inner slot 드래그 이벤트
 	document.querySelectorAll('.mix-inner-slot[data-mix-block-id]').forEach(slot => {
 		slot.addEventListener('dragover', event => {
@@ -3223,6 +4023,7 @@ function bindRenderedEvents() {
 	let _mixDragFrom = null;
 
 	document.querySelectorAll('.mix-inner-item[draggable]').forEach(item => {
+		if (item.classList.contains('pstep-inner-item')) return; // pstep 핸들러에서 처리
 		item.addEventListener('dragstart', event => {
 			// 버튼·입력·편집 영역에서는 드래그 시작 차단
 			if (event.target.closest('button, input, select, textarea, [contenteditable="true"]')) {
@@ -3380,53 +4181,6 @@ function selectBlockItem(blockId, columnIndex) {
 }
 
 
-function renderCanvasPanelUI() {
-	const isDevicePreview = state.previewDevice !== 'pc';
-	const canvasSizeControl = document.getElementById('canvasSizeControl');
-	if (!canvasSizeControl) return;
-	const sizes = ['1000', '1200', '1400'];
-	canvasSizeControl.innerHTML = `
-		<div class="canvas-size-select${isDevicePreview ? ' is-disabled' : ''}" data-canvas-size-menu>
-			<button type="button" class="canvas-size-trigger" data-canvas-size-trigger${isDevicePreview ? ' disabled' : ''}>
-				<i class="ri-ruler-line" aria-hidden="true"></i>
-				<span>캔버스 크기설정</span>
-				<strong>${state.canvasWidth}px</strong>
-				<i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-			</button>
-			<div class="canvas-size-options" role="listbox" aria-label="캔버스 크기">
-				${sizes.map(s => `
-					<button type="button" class="canvas-size-option${state.canvasWidth === s ? ' is-active' : ''}" data-canvas-size-value="${s}" role="option" aria-selected="${state.canvasWidth === s}">
-						<span>${s}px</span>
-						<i class="ri-check-line" aria-hidden="true"></i>
-					</button>`).join('')}
-			</div>
-			<p class="canvas-size-disabled-tip">태블릿·모바일 모드에서는 설정할 수 없습니다.</p>
-		</div>`;
-	if (!isDevicePreview) {
-		const menu = canvasSizeControl.querySelector('[data-canvas-size-menu]');
-		canvasSizeControl.querySelector('[data-canvas-size-trigger]')?.addEventListener('click', event => {
-			event.stopPropagation();
-			menu.classList.toggle('is-open');
-		});
-		canvasSizeControl.querySelectorAll('[data-canvas-size-value]').forEach(button => {
-			button.addEventListener('click', event => {
-				event.stopPropagation();
-				menu.classList.remove('is-open');
-				updateCanvasWidth(button.dataset.canvasSizeValue);
-				renderCanvasPanelUI();
-			});
-		});
-	}
-}
-
-function updateCanvasWidth(value) {
-	state.canvasWidth = value;
-	document.body.dataset.canvasSize = value;
-	if (state.previewDevice === 'pc') {
-		canvasGrid.style.maxWidth = `${value}px`;
-	}
-}
-
 function setPreviewDevice(device) {
 	state.previewDevice = device;
 	document.querySelectorAll('.device-btn').forEach(btn => {
@@ -3438,10 +4192,11 @@ function setPreviewDevice(device) {
 	} else if (device === 'mobile') {
 		canvasGrid.style.maxWidth = '380px';
 	} else {
-		canvasGrid.style.maxWidth = `${state.canvasWidth}px`;
+		canvasGrid.style.maxWidth = '1241px';
 	}
-	renderCanvasPanelUI();
 	updateDecoStudioAvailability();
+	// 디바이스 전환 시 탭 reactTab 클래스 및 .select 버튼 즉시 갱신
+	initCanvasReactTab();
 }
 
 
@@ -3496,6 +4251,45 @@ function startTextEdit(event) {
 	selection.addRange(range);
 	field.addEventListener('blur', finishTextEdit, { once: true });
 	field.addEventListener('keydown', handleEditKeydown);
+}
+
+function startTabTextEdit(event) {
+	if (document.body.classList.contains('preview-mode')) return;
+	event.preventDefault();
+	event.stopPropagation();
+	const aEl = event.currentTarget;
+	aEl._tabEditOriginal = aEl.textContent;
+	aEl.setAttribute('contenteditable', 'true');
+	aEl.focus();
+	const range = document.createRange();
+	range.selectNodeContents(aEl);
+	const sel = window.getSelection();
+	sel.removeAllRanges();
+	sel.addRange(range);
+	aEl.addEventListener('blur', finishTabTextEdit, { once: true });
+	aEl.addEventListener('keydown', _tabEditKeydown);
+}
+
+function _tabEditKeydown(event) {
+	if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+	if (event.key === 'Escape') { event.preventDefault(); event.currentTarget._tabEditCancelled = true; event.currentTarget.blur(); }
+}
+
+function finishTabTextEdit(event) {
+	const aEl = event.currentTarget;
+	aEl.removeEventListener('keydown', _tabEditKeydown);
+	aEl.removeAttribute('contenteditable');
+	if (aEl._tabEditCancelled) { aEl._tabEditCancelled = false; return; }
+	const blockId = aEl.dataset.tabBlockId;
+	const idx = Number(aEl.dataset.tabItemIdx);
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block || !block.tabItems || !block.tabItems[idx]) return;
+	const newText = aEl.textContent.trim();
+	if (newText && newText !== aEl._tabEditOriginal) {
+		pushHistory();
+		block.tabItems[idx].text = newText;
+		render();
+	}
 }
 
 function handleEditKeydown(event) {
@@ -4514,7 +5308,7 @@ async function savePreviewImage() {
 	}));
 
 	try {
-		const targetWidth = Number(state.canvasWidth) || 1200;
+		const targetWidth = 1241;
 		const pixelRatio = targetWidth / Math.max(1, gridWidth);
 		const dataUrl = await lib.toPng(captureTarget, {
 			backgroundColor: '#ffffff',
@@ -4802,11 +5596,6 @@ async function init() {
 	initSmartInlinePopup();
 	document.getElementById('recommendPanelOpen')?.addEventListener('click', openRecommendationPanel);
 	updateRecommendFab();
-	document.addEventListener('click', event => {
-		if (!event.target.closest('[data-canvas-size-menu]')) {
-			document.querySelectorAll('[data-canvas-size-menu].is-open').forEach(menu => menu.classList.remove('is-open'));
-		}
-	});
 	window.addEventListener('resize', () => {
 		positionRecommendationPanel(document.getElementById('recommendPanel'));
 		syncCanvasGuideSize();
@@ -4839,7 +5628,12 @@ async function init() {
 		}
 	});
 	canvasGrid.addEventListener('click', event => {
-		if (event.target.closest('a')) event.preventDefault();
+		const anchor = event.target.closest('a');
+		if (!anchor) return;
+		// 새창링크(target="_blank")와 다운링크(download 속성)만 캔버스에서 차단
+		if (anchor.getAttribute('target') === '_blank' || anchor.hasAttribute('download')) {
+			event.preventDefault();
+		}
 	}, true);
 	canvasGrid.addEventListener('dblclick', event => {
 		if (event.target.closest('a')) event.preventDefault();
@@ -4853,15 +5647,15 @@ async function init() {
 	initFormatToolbar();
 	document.getElementById('iconDrawerClose').addEventListener('click', closeIconDrawer);
 	document.getElementById('iconDrawerBackdrop').addEventListener('click', closeIconDrawer);
-	canvasGrid.style.maxWidth = `${state.canvasWidth}px`;
-	document.body.dataset.canvasSize = state.canvasWidth;
+	canvasGrid.style.maxWidth = '1241px';
+	document.body.dataset.canvasSize = '1241';
 	document.body.dataset.previewDevice = 'pc';
 	updateDecoStudioAvailability();
 	document.getElementById('deviceSwitcher').addEventListener('click', e => {
 		const btn = e.target.closest('[data-device]');
 		if (btn) setPreviewDevice(btn.dataset.device);
 	});
-	renderCanvasPanelUI();
+
 	render();
 }
 

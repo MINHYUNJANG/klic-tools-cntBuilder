@@ -44,8 +44,6 @@
 						<i class="ri-cellphone-line" aria-hidden="true"></i>
 					</button>
 				</div>
-				<span class="topbar-action-divider" aria-hidden="true"></span>
-				<div class="canvas-size-control" id="canvasSizeControl" aria-label="캔버스 크기설정"></div>
 				<button type="button" class="ghost-button" id="clearCanvas">
 					<i class="ri-refresh-line" aria-hidden="true"></i>
 					캔버스 초기화
@@ -115,6 +113,8 @@
 								<button type="button" data-template-filter="box">박스</button>
 								<button type="button" data-template-filter="tab">탭</button>
 								<button type="button" data-template-filter="process">절차</button>
+								<button type="button" data-template-filter="accordion">아코디언</button>
+								<button type="button" data-template-filter="discloser">디스클로저</button>
 								<button type="button" data-template-filter="button">버튼</button>
 								<button type="button" data-template-filter="bullet">불릿</button>
 							</div>
@@ -270,6 +270,89 @@
 					</div>
 				</div>
 			</div>
+			<!-- 탭 속성 패널 -->
+			<div class="props-section" id="propsTabSection" style="display:none">
+				<p class="props-section-label">탭 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">탭 열 수</span>
+						<select class="props-select" id="propTabCols">
+							<option value="2">2열</option>
+							<option value="3">3열</option>
+							<option value="4" selected>4열 (기본)</option>
+							<option value="5">5열</option>
+						</select>
+					</div>
+				</div>
+				<p class="props-section-label" style="margin-top:0.75rem">탭 항목 관리</p>
+				<div class="props-card props-tab-items-card" id="propsTabItemsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddTabItem">
+					<i class="ri-add-line" aria-hidden="true"></i> 탭 추가
+				</button>
+			</div>
+			<!-- 절차 속성 패널 -->
+			<div class="props-section" id="propsProcessSection" style="display:none">
+				<!-- 가로형 전용: 열 수 선택 -->
+				<div id="propsProcessHorizCard">
+					<p class="props-section-label">열 수</p>
+					<div class="props-card">
+						<div class="props-row props-row--last">
+							<span class="props-label">열 수 선택</span>
+							<select class="props-select" id="propProcessCols">
+								<option value="2">2열</option>
+								<option value="3">3열</option>
+								<option value="4" selected>4열 (기본)</option>
+								<option value="5">5열</option>
+								<option value="6">6열</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				<!-- 공통: 단계별 설명(sub) 관리 -->
+				<p class="props-section-label">단계 설명 관리</p>
+				<div class="props-card props-process-steps-card" id="propsProcessStepsContainer"></div>
+				<!-- 세로형 전용: 단계 추가 버튼 -->
+				<button type="button" class="props-add-row-btn" id="propsAddProcessStep" style="display:none">
+					<i class="ri-add-line" aria-hidden="true"></i> 단계 추가
+				</button>
+			</div>
+			<!-- 아코디언 속성 패널 -->
+			<div class="props-section" id="propsAccordionSection" style="display:none">
+				<p class="props-section-label">아코디언 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">크기</span>
+						<select class="props-select" id="propAccordionSize">
+							<option value="">기본</option>
+							<option value="size-md">중간 (size-md)</option>
+							<option value="size-lg">크게 (size-lg)</option>
+						</select>
+					</div>
+				</div>
+				<p class="props-section-label" style="margin-top:0.75rem">메뉴 항목 관리</p>
+				<div class="props-card props-accordion-items-card" id="propsAccordionItemsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddAccordionItem">
+					<i class="ri-add-line" aria-hidden="true"></i> 메뉴 추가
+				</button>
+			</div>
+
+			<div class="props-section" id="propsDiscloserSection" style="display:none">
+				<p class="props-section-label">Discloser 설정</p>
+				<div class="props-card">
+					<div class="props-row" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+						<span class="props-label">버튼 제목</span>
+						<input type="text" class="props-input" id="propDiscloserTitle"
+							style="width:100%;text-align:left;height:1.5rem"
+							placeholder="버튼 제목 입력">
+					</div>
+					<div class="props-row props-row--last" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+						<span class="props-label">내용</span>
+						<textarea class="props-input" id="propDiscloserContent"
+							style="width:100%;height:4rem;resize:vertical;text-align:left;line-height:1.4;padding:0.3rem 6px"
+							placeholder="내용 입력 (비우면 '내용이 없습니다.' 표시)"></textarea>
+					</div>
+				</div>
+			</div>
 		</div>
 	</aside>
 
@@ -344,6 +427,8 @@
 	</div>
 
 	<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+	<script src="/js/jquery.min.js"></script>
+	<script src="/js/con_com.js"></script>
 	<script src="/js/builder-shared.js"></script>
 	<script src="/js/cntBuilder.js"></script>
 </body>
