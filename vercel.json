@@ -1,4 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "installCommand": "npm install --ignore-scripts",
+  "buildCommand": "node js/build-static.js",
+  "outputDirectory": "dist",
+  "framework": null
 }
