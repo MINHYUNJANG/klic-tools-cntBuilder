@@ -1188,9 +1188,9 @@ body.preview-mode .mix-slot-placeholder {
 .mix-inner-item {
 	position: relative;
 }
-.mix-inner-item + .mix-inner-item {
+/* .mix-inner-item + .mix-inner-item {
 	border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
+} */
 .mix-inner-slot .mix-inner-item:only-child,
 .mix-inner-slot .mix-inner-item:last-child {
 	margin-bottom: 0 !important;

@@ -162,6 +162,22 @@
 			<div class="props-section">
 				<p class="props-section-label">블록 설정</p>
 				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">너비</span>
+						<select class="props-select" id="propBlockWidth">
+							<option value="">전체 너비</option>
+							<option value="auto">자동</option>
+							<option value="25%">25%</option>
+							<option value="33.333%">33%</option>
+							<option value="50%">50%</option>
+							<option value="66.666%">66%</option>
+							<option value="75%">75%</option>
+						</select>
+					</div>
+					<div class="props-row">
+						<span class="props-label">하단 간격</span>
+						<input type="number" class="props-input" id="propMarginBottom" min="0" max="200" step="1" placeholder="10">
+					</div>
 					<div class="props-row props-row--last">
 						<span class="props-label">정렬</span>
 						<div class="props-align-btns" id="propBlockAlign">
@@ -215,6 +231,44 @@
 					<i class="ri-check-line" aria-hidden="true"></i> 적용
 				</button>
 				<p class="props-notice" id="propsDownloadNotice" style="display:none">추후 작업예정입니다.</p>
+			</div>
+			<div class="props-section" id="propsBoxImgSection" style="display:none">
+				<p class="props-section-label">이미지 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">이미지 업로드</span>
+						<input type="file" class="props-file-input" id="propBoxImgFile" accept="image/*">
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이미지 설명</span>
+						<input type="text" class="props-input props-input--wide" id="propBoxImgAlt" placeholder="alt 텍스트 입력">
+					</div>
+				</div>
+				<button type="button" class="props-add-row-btn" id="propsApplyBoxImg">
+					<i class="ri-check-line" aria-hidden="true"></i> 적용
+				</button>
+			</div>
+			<div class="props-section" id="propsBoxIcoSection" style="display:none">
+				<p class="props-section-label">아이콘 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">아이콘 선택</span>
+						<select class="props-select" id="propBoxIco">
+							<option value="ico-box1">아이콘 1 (모니터/체크)</option>
+							<option value="ico-box2">아이콘 2 (건물 비교)</option>
+							<option value="ico-box3">아이콘 3 (막대그래프)</option>
+							<option value="ico-box4">아이콘 4 (책/노트)</option>
+							<option value="ico-box5">아이콘 5 (집/홈)</option>
+							<option value="ico-box6">아이콘 6 (전구/태양)</option>
+							<option value="ico-box7">아이콘 7 (캘린더/별)</option>
+							<option value="ico-box8">아이콘 8 (위치/핀)</option>
+							<option value="ico-box9">아이콘 9 (문서 체크)</option>
+							<option value="ico-box10">아이콘 10 (동영상)</option>
+							<option value="ico-box11">아이콘 11 (말풍선)</option>
+							<option value="ico-box12">아이콘 12 (채팅창)</option>
+						</select>
+					</div>
+				</div>
 			</div>
 		</div>
 	</aside>

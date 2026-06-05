@@ -3009,9 +3009,9 @@ body.preview-mode .mix-slot-placeholder {
 .mix-inner-item {
 	position: relative;
 }
-.mix-inner-item + .mix-inner-item {
+/* .mix-inner-item + .mix-inner-item {
 	border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
+} */
 /* 내부 블록이 1개뿐이거나 마지막 블록이면 하단 여백 제거 */
 .mix-inner-slot .mix-inner-item:only-child,
 .mix-inner-slot .mix-inner-item:last-child {
@@ -3090,6 +3090,36 @@ body.preview-mode .mix-slot-placeholder {
 }
 body.preview-mode .mix-inner-remove,
 body.preview-mode .mix-inner-drag-handle {
+	display: none;
+}
+
+/* 리스트 내부 블록 행 관리 버튼 */
+.mix-inner-props {
+	position: absolute;
+	bottom: 8px;
+	right: 38px;
+	z-index: 10;
+	width: 24px;
+	height: 24px;
+	min-height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #4a6fa5;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	opacity: 0;
+	transition: opacity 0.15s;
+	padding: 0;
+	line-height: 1;
+}
+.mix-inner-item:hover .mix-inner-props {
+	opacity: 1;
+}
+body.preview-mode .mix-inner-props {
 	display: none;
 }
 
