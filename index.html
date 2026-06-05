@@ -3,26 +3,29 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>KLIC TOOLs - 교육목표 빌더</title>
+	<title>KLIC TOOLs - 콘텐츠 빌더</title>
 	<link rel="stylesheet" href="/css/fonts/Montserrat/fonts.css" media="all">
 	<link rel="stylesheet" href="/css/fonts/Pretendard/fonts.css" media="all">
 	<link rel="stylesheet" href="/css/fonts/RemixIcon_Fonts_v4.7.0/remixicon.css" media="all">
 	<link rel="stylesheet" href="/css/basic.css" media="all">
 	<link rel="stylesheet" href="/css/common.css" media="all">
-	<link rel="stylesheet" href="/css/goal_common.css" media="all">
+	<link rel="stylesheet" href="/css/theme.css" media="all">
+	<link rel="stylesheet" href="/css/con_com.css" media="all">
+	<link rel="stylesheet" href="/css/canvas.css" media="all">
+	<link rel="stylesheet" href="/css/cntBuilder_common.css" media="all">
 </head>
-<body class="goal-builder-page">
+<body class="cntBuilder-page">
 	<div class="app-shell">
 		<div id="headerSentinel" class="header-sentinel"></div>
 		<header class="topbar">
 			<div class="topbar-brand">
 				<span class="topbar-logo" aria-hidden="true"></span>
-				<a class="topbar-title-link" href="./" aria-label="교육목표 빌더 홈">
+				<a class="topbar-title-link" href="./" aria-label="콘텐츠 빌더 홈">
 					<p class="eyebrow">Grid Builder</p>
 					<div class="title-row">
 						<strong>KLIC TOOLs</strong>
 						<span aria-hidden="true"></span>
-						<h1>교육목표 빌더</h1>
+						<h1>콘텐츠 빌더</h1>
 					</div>
 				</a>
 			</div>
@@ -74,7 +77,7 @@
 
 		<main class="builder" id="builderMain">
 			<aside class="sidebar" aria-label="디자인 블록 도구">
-				<aside class="deco-studio-drawer" id="decoStudioDrawer" aria-label="꾸밈 스튜디오">
+				<aside class="deco-studio-drawer" id="decoStudioDrawer" aria-label="꾸밈 스튜디오" hidden>
 					<div class="deco-studio-head">
 						<strong>꾸밈 스튜디오</strong>
 						<button type="button" class="ghost-button deco-studio-close" id="decoStudioClose" aria-label="꾸밈 스튜디오 닫기">
@@ -92,27 +95,28 @@
 				<section class="tool-section">
 					<!-- 메인 탭 -->
 					<div class="sidebar-tabs">
-						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="templates">디자인 템플릿</button>
-						<button type="button" class="sidebar-tab-btn is-active" data-sidebar-tab="blocks">디자인 블록</button>
 						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="custom">디자인 커스텀</button>
-					</div>
-
-					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelTemplates">
-						<p class="template-empty">준비중입니다.</p>
+						<button type="button" class="sidebar-tab-btn is-active" data-sidebar-tab="blocks">디자인 블록</button>
 					</div>
 
 					<!-- 디자인 블록 패널 -->
+
+					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelCustom">
+						<p class="template-empty">준비중입니다.</p>
+					</div>
+
 					<div class="sidebar-tab-panel" id="panelBlocks">
 						<div class="filter-scroll-shell">
 							<div class="component-filters" aria-label="디자인 블록 필터">
 								<button type="button" class="is-active" data-template-filter="all">전체</button>
-								<button type="button" data-template-filter="box">박스타입</button>
-								<button type="button" data-template-filter="list">리스트타입</button>
-								<button type="button" data-template-filter="title-vertical">세로 타이틀</button>
-								<button type="button" data-template-filter="title-horizontal">가로 타이틀</button>
-								<button type="button" data-template-filter="divider">연결/구분선</button>
-								<button type="button" data-template-filter="mix">혼합타입</button>
-								<button type="button" data-template-filter="title-list">타이틀+목록</button>
+								<button type="button" data-template-filter="title">타이틀</button>
+								<button type="button" data-template-filter="text">텍스트</button>
+								<button type="button" data-template-filter="list">리스트</button>
+								<button type="button" data-template-filter="box">박스</button>
+								<button type="button" data-template-filter="tab">탭</button>
+								<button type="button" data-template-filter="process">절차</button>
+								<button type="button" data-template-filter="button">버튼</button>
+								<button type="button" data-template-filter="bullet">불릿</button>
 							</div>
 						</div>
 						<div class="component-list" id="componentList" aria-label="드래그 가능한 디자인 블록">
@@ -123,16 +127,12 @@
 						</div>
 					</div>
 
-					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelCustom">
-						<p class="template-empty">준비중입니다.</p>
-					</div>
-
 				</section>
 			</aside>
 
 			<section class="workspace" aria-label="서브콘텐츠 작업 영역">
 				<div class="canvas-quick-actions" aria-label="캔버스 보조 도구">
-					<button type="button" class="canvas-tool-fab deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기">
+					<button type="button" class="canvas-tool-fab deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기" hidden>
 						<i class="ri-sparkling-2-line" aria-hidden="true"></i>
 					</button>
 					<button type="button" class="canvas-tool-fab recommend-fab" id="recommendPanelOpen" aria-label="추천디자인 열기" hidden>
@@ -146,19 +146,107 @@
 				</div>
 			</section>
 
-			<div class="right-col">
-				<aside class="canvas-panel" id="canvasPanel" aria-label="캔버스 설정">
-				</aside>
-				<aside class="options-panel" id="optionsPanel" aria-label="스타일 옵션">
-					<div class="options-panel-empty">
-						<i class="ri-cursor-line" aria-hidden="true"></i>
-						<p>항목을 클릭하면<br>스타일을 편집할 수 있습니다.</p>
-					</div>
-				</aside>
-			</div>
 
 		</main>
 
+	</div>
+
+	<aside class="block-props-panel" id="blockPropsPanel" aria-label="블록 속성">
+		<div class="block-props-head">
+			<strong class="block-props-name" id="blockPropsTitle">블록</strong>
+			<button type="button" class="block-props-close-btn" id="blockPropsClose" aria-label="닫기">
+				<i class="ri-close-line" aria-hidden="true"></i>
+			</button>
+		</div>
+		<div class="block-props-body">
+			<div class="props-section">
+				<p class="props-section-label">블록 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">정렬</span>
+						<div class="props-align-btns" id="propBlockAlign">
+							<button type="button" class="props-align-btn" data-align="al" title="왼쪽 정렬" aria-label="왼쪽 정렬">
+								<i class="ri-align-left" aria-hidden="true"></i>
+							</button>
+							<button type="button" class="props-align-btn" data-align="ac" title="중앙 정렬" aria-label="중앙 정렬">
+								<i class="ri-align-center" aria-hidden="true"></i>
+							</button>
+							<button type="button" class="props-align-btn" data-align="ar" title="오른쪽 정렬" aria-label="오른쪽 정렬">
+								<i class="ri-align-right" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="props-section" id="propsListSection" style="display:none">
+				<p class="props-section-label">행 관리</p>
+				<div class="props-card props-list-card" id="propsListRowsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddRowTop">
+					<i class="ri-add-line" aria-hidden="true"></i> 행 추가
+				</button>
+			</div>
+			<div class="props-section" id="propsLinkSection" style="display:none">
+				<p class="props-section-label">링크 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">URL</span>
+						<input type="url" class="props-input props-input--wide" id="propLinkHref" placeholder="https://...">
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이동 타입</span>
+						<select class="props-select" id="propLinkTarget">
+							<option value="_blank">새 창 (_blank)</option>
+							<option value="_self">현재 창 (_self)</option>
+							<option value="_parent">부모 창 (_parent)</option>
+							<option value="_top">최상위 창 (_top)</option>
+						</select>
+					</div>
+				</div>
+			</div>
+			<div class="props-section" id="propsDownloadSection" style="display:none">
+				<p class="props-section-label">다운로드 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">파일 선택</span>
+						<input type="file" class="props-file-input" id="propDownloadFile">
+					</div>
+				</div>
+				<button type="button" class="props-add-row-btn" id="propsApplyDownload">
+					<i class="ri-check-line" aria-hidden="true"></i> 적용
+				</button>
+				<p class="props-notice" id="propsDownloadNotice" style="display:none">추후 작업예정입니다.</p>
+			</div>
+		</div>
+	</aside>
+
+	<!-- 인라인 스마트 블록 속성 팝업 -->
+	<div class="inline-prop-popup" id="inlinePropPopup" role="dialog" aria-label="인라인 요소 속성 설정">
+		<div class="inline-prop-popup__row">
+			<span class="inline-prop-popup__label">텍스트</span>
+			<input type="text" class="inline-prop-popup__input" id="inlinePropText" placeholder="표시할 텍스트">
+		</div>
+		<div class="inline-prop-popup__link" id="inlinePropLinkSection">
+			<div class="inline-prop-popup__row">
+				<span class="inline-prop-popup__label">URL</span>
+				<input type="url" class="inline-prop-popup__input" id="inlinePropHref" placeholder="https://">
+			</div>
+			<div class="inline-prop-popup__row" id="inlinePropTargetRow">
+				<span class="inline-prop-popup__label">이동 타입</span>
+				<select class="inline-prop-popup__select" id="inlinePropTarget">
+					<option value="_blank">새 창 (_blank)</option>
+					<option value="_self">현재 창 (_self)</option>
+					<option value="_parent">부모 창 (_parent)</option>
+					<option value="_top">최상위 창 (_top)</option>
+				</select>
+			</div>
+		</div>
+		<div class="inline-prop-popup__download" id="inlinePropDownloadSection" style="display:none">
+			<p class="inline-prop-popup__notice">추후 작업예정입니다.</p>
+		</div>
+		<div class="inline-prop-popup__actions">
+			<button type="button" class="inline-prop-popup__cancel" id="inlinePropCancel">취소</button>
+			<button type="button" class="inline-prop-popup__confirm" id="inlinePropConfirm">삽입</button>
+		</div>
 	</div>
 
 	<aside class="markup-panel" id="markupPanel" role="dialog" aria-modal="true" aria-label="생성된 마크업">
@@ -203,6 +291,6 @@
 
 	<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 	<script src="/js/builder-shared.js"></script>
-	<script src="/js/goal.js"></script>
+	<script src="/js/cntBuilder.js"></script>
 </body>
 </html>
