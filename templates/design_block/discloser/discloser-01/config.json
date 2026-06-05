@@ -1,0 +1,8 @@
+{
+  "addDirection": "column",
+  "templateFilters": ["discloser"],
+  "discloserDefaults": {
+    "title": "Discloser",
+    "content": ""
+  }
+}
