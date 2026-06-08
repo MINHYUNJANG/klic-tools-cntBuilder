@@ -957,6 +957,9 @@ function removeBlock(blockId) {
 
 function convertAndInsertTitleBlock(payload, targetBlockId, demotedType) {
 	pushHistory();
+	const newTemplate = componentTemplates[demotedType];
+	const newDefaultData = newTemplate?.getDefaultData ? newTemplate.getDefaultData() : {};
+
 	if (payload.startsWith('new-block:') || payload.startsWith('new-design-template:')) {
 		const block = createBlock(demotedType);
 		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
@@ -968,7 +971,10 @@ function convertAndInsertTitleBlock(payload, targetBlockId, demotedType) {
 	} else if (payload.startsWith('copy-block:')) {
 		const srcBlock = state.blocks.find(b => b.id === payload.replace('copy-block:', ''));
 		const block = createBlock(demotedType);
-		if (srcBlock?.items?.[0]?.data) block.items[0].data = cloneData(srcBlock.items[0].data);
+		// 원본 블록의 타이틀 텍스트 복사
+		if (srcBlock?.items?.[0]?.title !== undefined) {
+			block.items[0].title = srcBlock.items[0].title;
+		}
 		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
 		state.blocks.splice(targetIndex + 1, 0, block);
 		render();
@@ -980,8 +986,15 @@ function convertAndInsertTitleBlock(payload, targetBlockId, demotedType) {
 		if (blockId === targetBlockId) return;
 		const movingBlock = state.blocks.find(b => b.id === blockId);
 		if (!movingBlock) return;
+		// 기존 타이틀 텍스트 보존
+		const savedTitle = movingBlock.items[0]?.title;
+		// 타입 변경 및 items를 새 타입 기준으로 완전 재초기화 (HTML 태그 포함 템플릿 교체 보장)
 		movingBlock.type = demotedType;
-		movingBlock.items[0].style = createStyleForType(demotedType);
+		movingBlock.items = [{
+			...cloneData(newDefaultData),
+			title: savedTitle !== undefined ? savedTitle : (newDefaultData.title || ''),
+			style: createStyleForType(demotedType)
+		}];
 		const currentIndex = state.blocks.findIndex(b => b.id === blockId);
 		state.blocks.splice(currentIndex, 1);
 		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
@@ -6653,6 +6666,11 @@ async function init() {
 	try {
 		await Promise.all([loadTemplates(), loadIconCategories()]);
 		renderComponentList();
+		if (state.blocks.length === 0) {
+			const block = createBlock('title-01');
+			state.blocks.push(block);
+			render();
+		}
 	} catch (error) {
 		console.error(error);
 		showTemplateLoadError(error);
@@ -6725,6 +6743,8 @@ async function init() {
 	KlicBuilderShared.bindCanvasDropTargets({ canvasGrid, canvasWrapper, onDragOver: handleCanvasDragOver, onDrop: handleCanvasDrop });
 	_listEditButtons = createListEditButtons();
 	initThemeSwitcher();
+	initGuidedTour();
+	initPropsHelp();
 	document.getElementById('iconDrawerClose').addEventListener('click', closeIconDrawer);
 	document.getElementById('iconDrawerBackdrop').addEventListener('click', closeIconDrawer);
 	canvasGrid.style.maxWidth = '1241px';
@@ -6737,6 +6757,167 @@ async function init() {
 	});
 
 	render();
+}
+
+// ── 속성 패널 도움말 ─────────────────────────────────────────
+function initPropsHelp() {
+	const btn   = document.getElementById('blockPropsHelp');
+	const panel = document.getElementById('blockPropsPanel');
+	if (!btn || !panel) return;
+
+	btn.addEventListener('click', () => {
+		const active = panel.classList.toggle('props-help-active');
+		btn.classList.toggle('is-active', active);
+		btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+	});
+
+	// 패널이 닫힐 때 도움말 상태도 초기화
+	document.getElementById('blockPropsClose')?.addEventListener('click', () => {
+		panel.classList.remove('props-help-active');
+		btn.classList.remove('is-active');
+		btn.setAttribute('aria-pressed', 'false');
+	});
+}
+
+// ── 안내 투어 ─────────────────────────────────────────────
+const TOUR_STEPS = [
+	{
+		target: '.sidebar',
+		title: '① 디자인 블록 선택',
+		desc: '상단 필터로 원하는 유형을 고른 뒤, 블록 카드를 오른쪽 캔버스로 드래그하세요. 타이틀·텍스트·박스·버튼 등 다양한 블록이 준비되어 있습니다.',
+		position: 'right'
+	},
+	{
+		target: '.workspace',
+		title: '② 캔버스에 배치',
+		desc: '이 영역으로 블록을 드래그하면 콘텐츠가 쌓입니다. 배치된 블록은 다시 드래그해 순서를 바꿀 수 있어요.',
+		position: 'left'
+	},
+	{
+		target: '.builder-block',
+		title: '③ 블록 편집 컨트롤',
+		desc: '블록에 마우스를 올리면 오른쪽 상단에 3가지 버튼이 나타납니다.<ul class="tour-ctrl-list"><li><i class="ri-settings-3-line"></i> <b>속성</b> — 텍스트·색상·링크 등을 편집합니다</li><li><i class="ri-file-copy-line"></i> <b>복사</b> — 블록을 복제해 바로 아래에 추가합니다</li><li><i class="ri-close-line"></i> <b>삭제</b> — 블록을 캔버스에서 제거합니다</li></ul>',
+		position: 'bottom'
+	},
+	{
+		target: '#themeSwitcher',
+		title: '④ 테마 색상 선택',
+		desc: '6가지 테마 중 하나를 선택하면 전체 색상이 한 번에 바뀝니다. 기관 브랜드에 맞는 색상을 골라보세요.',
+		position: 'bottom'
+	}
+];
+
+function initGuidedTour() {
+	const btn = document.getElementById('helpModeToggle');
+	if (!btn) return;
+
+	let prevSpotlight = null;
+
+	const overlay = document.createElement('div');
+	overlay.className = 'tour-overlay';
+	overlay.hidden = true;
+	document.body.appendChild(overlay);
+
+	const callout = document.createElement('div');
+	callout.className = 'tour-callout';
+	callout.hidden = true;
+	document.body.appendChild(callout);
+
+	function clearSpotlight() {
+		if (prevSpotlight) {
+			prevSpotlight.classList.remove('tour-spotlight');
+			prevSpotlight = null;
+		}
+	}
+
+	function positionCallout(targetEl, position) {
+		const rect = targetEl.getBoundingClientRect();
+		const cw = 290;
+		const gap = 18;
+		const vw = window.innerWidth;
+		const vh = window.innerHeight;
+		let top, left, arrow;
+
+		if (position === 'right') {
+			top = rect.top + rect.height / 2 - 90;
+			left = rect.right + gap;
+			arrow = 'left';
+		} else if (position === 'left') {
+			top = rect.top + rect.height / 2 - 90;
+			left = rect.left - cw - gap;
+			arrow = 'right';
+		} else if (position === 'bottom') {
+			top = rect.bottom + gap;
+			left = rect.left + rect.width / 2 - cw / 2;
+			arrow = 'top';
+		} else {
+			top = rect.top - 170;
+			left = rect.left + rect.width / 2 - cw / 2;
+			arrow = 'bottom';
+		}
+
+		left = Math.max(12, Math.min(left, vw - cw - 12));
+		top  = Math.max(12, Math.min(top,  vh - 200));
+
+		callout.style.top  = top  + 'px';
+		callout.style.left = left + 'px';
+		callout.dataset.arrow = arrow;
+	}
+
+	function showStep(index) {
+		const step = TOUR_STEPS[index];
+		const targetEl = document.querySelector(step.target);
+
+		clearSpotlight();
+		if (targetEl) {
+			targetEl.classList.add('tour-spotlight');
+			prevSpotlight = targetEl;
+		}
+
+		const isFirst = index === 0;
+		const isLast  = index === TOUR_STEPS.length - 1;
+
+		callout.innerHTML = `
+			<div class="tour-callout-step">STEP ${index + 1} / ${TOUR_STEPS.length}</div>
+			<strong class="tour-callout-title">${step.title}</strong>
+			<p class="tour-callout-desc">${step.desc}</p>
+			<div class="tour-callout-actions">
+				<button type="button" class="tour-skip">건너뛰기</button>
+				<div class="tour-nav">
+					${!isFirst ? '<button type="button" class="tour-prev">← 이전</button>' : ''}
+					<button type="button" class="tour-next${isLast ? ' is-last' : ''}">${isLast ? '완료 ✓' : '다음 →'}</button>
+				</div>
+			</div>`;
+		callout.hidden = false;
+
+		if (targetEl) positionCallout(targetEl, step.position);
+
+		callout.querySelector('.tour-skip').addEventListener('click', endTour);
+		callout.querySelector('.tour-prev')?.addEventListener('click', () => showStep(index - 1));
+		callout.querySelector('.tour-next').addEventListener('click', () => isLast ? endTour() : showStep(index + 1));
+	}
+
+	function startTour() {
+		document.body.classList.add('tour-active');
+		overlay.hidden = false;
+		btn.classList.add('is-active');
+		btn.setAttribute('aria-pressed', 'true');
+		showStep(0);
+	}
+
+	function endTour() {
+		document.body.classList.remove('tour-active');
+		overlay.hidden = true;
+		callout.hidden = true;
+		clearSpotlight();
+		btn.classList.remove('is-active');
+		btn.setAttribute('aria-pressed', 'false');
+	}
+
+	btn.addEventListener('click', () => {
+		if (document.body.classList.contains('tour-active')) endTour();
+		else startTour();
+	});
 }
 
 // ── 테마 선택기 ───────────────────────────────────────────

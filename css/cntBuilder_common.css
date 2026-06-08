@@ -1335,6 +1335,270 @@ body.preview-mode .overlay-layer {
 	min-height: 100%;
 }
 
+/* ── 속성 패널 도움말 버튼 ──────────────────────────────────── */
+.block-props-help-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	min-height: 18px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--muted, #647084);
+	font-size: 0.7rem;
+	cursor: pointer;
+	padding: 0;
+	line-height: 1;
+	transition: background 0.15s, color 0.15s;
+}
+
+.block-props-help-btn:hover {
+	background: #eff6ff;
+	color: #2563eb;
+}
+
+.block-props-help-btn.is-active {
+	background: #dbeafe;
+	color: #1d4ed8;
+}
+
+/* 도움말 활성 시 섹션 레이블에 설명 표시 */
+.props-help-active .props-section-label[data-help] {
+	padding-bottom: 2px;
+}
+
+.props-help-active .props-section-label[data-help]::after {
+	content: attr(data-help);
+	display: block;
+	font-size: 0.525rem;
+	font-weight: 400;
+	color: var(--muted, #647084);
+	margin-top: 5px;
+	line-height: 1.6;
+	padding: 5px 8px;
+	background: #eff6ff;
+	border-left: 2px solid #3b82f6;
+	border-radius: 0 4px 4px 0;
+	word-break: keep-all;
+}
+
+/* ── 안내 투어 ─────────────────────────────────────────────── */
+#helpModeToggle.is-active {
+	background: #fef9c3;
+	border-color: #ca8a04;
+	color: #92400e;
+}
+
+/* 전체 어두운 오버레이 */
+.tour-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(10, 10, 20, 0.68);
+	z-index: 10000;
+	pointer-events: none;
+	animation: tour-fade-in 0.22s ease;
+}
+
+@keyframes tour-fade-in {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+
+/* 투어 중 탑바는 오버레이 위에 */
+.tour-active .topbar {
+	z-index: 10001;
+}
+
+/* 강조 대상 — 오버레이 위로 부상 + 황금 테두리 + 글로우 */
+.tour-spotlight {
+	z-index: 10001 !important;
+	outline: 3px solid #fbbf24 !important;
+	outline-offset: 5px;
+	border-radius: 6px;
+	box-shadow:
+		0 0 0 8px rgba(251, 191, 36, 0.18),
+		0 0 40px rgba(251, 191, 36, 0.22) !important;
+}
+
+/* 말풍선 */
+.tour-callout {
+	position: fixed;
+	z-index: 10002;
+	width: 290px;
+	background: #ffffff;
+	border-radius: 14px;
+	padding: 20px 22px 16px;
+	box-shadow: 0 10px 48px rgba(0, 0, 0, 0.24), 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tour-callout-step {
+	font-size: 0.525rem;
+	font-weight: 800;
+	color: var(--muted, #647084);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	margin-bottom: 7px;
+}
+
+.tour-callout-title {
+	display: block;
+	font-size: 0.725rem;
+	font-weight: 800;
+	color: var(--ink, #252525);
+	margin-bottom: 8px;
+	line-height: 1.4;
+}
+
+.tour-callout-desc {
+	font-size: 0.625rem;
+	line-height: 1.7;
+	color: var(--muted, #647084);
+	margin: 0 0 16px;
+}
+
+.tour-callout-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.tour-skip {
+	font-size: 0.575rem;
+	font-weight: 600;
+	color: var(--muted, #647084);
+	background: none !important;
+	border: none !important;
+	min-height: 28px;
+	padding: 0 2px;
+	cursor: pointer;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.tour-nav {
+	display: flex;
+	gap: 6px;
+}
+
+.tour-prev,
+.tour-next {
+	font-size: 0.6rem;
+	font-weight: 700;
+	min-height: 34px;
+	padding: 0 14px;
+	border-radius: 999px;
+	cursor: pointer;
+	transition: opacity 0.15s, background 0.15s;
+}
+
+.tour-prev {
+	background: var(--panel-soft, #f7f7f7);
+	border: 1px solid var(--line, #dddddd);
+	color: var(--ink, #252525);
+}
+
+.tour-next {
+	background: var(--ink, #252525);
+	border: 1px solid transparent;
+	color: #ffffff;
+}
+
+.tour-next.is-last {
+	background: #16a34a;
+}
+
+.tour-prev:hover { background: var(--line, #dddddd); }
+.tour-next:hover { opacity: 0.85; }
+
+/* step 3: 블록 컨트롤 항상 노출 + 황금 테두리 */
+.builder-block.tour-spotlight .block-controls {
+	opacity: 1 !important;
+	pointer-events: none !important;
+	outline: 2px solid #fbbf24;
+	outline-offset: 3px;
+	box-shadow: 0 0 0 5px rgba(251, 191, 36, 0.2), 0 0 16px rgba(251, 191, 36, 0.18);
+}
+
+/* 투어 말풍선 내 컨트롤 목록 */
+.tour-ctrl-list {
+	list-style: none;
+	padding: 0;
+	margin: 10px 0 0;
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.tour-ctrl-list li {
+	display: flex;
+	align-items: flex-start;
+	gap: 7px;
+	font-size: 0.6rem;
+	line-height: 1.4;
+	color: var(--ink, #252525);
+	word-break: keep-all;
+}
+
+.tour-ctrl-list li i {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	background: var(--panel-soft, #f7f7f7);
+	border: 1px solid var(--line, #dddddd);
+	border-radius: 5px;
+	font-size: 0.7rem;
+	flex-shrink: 0;
+	color: var(--muted, #647084);
+}
+
+/* 말풍선 꼬리 (아래방향 — 위쪽 요소에 붙을 때) */
+.tour-callout[data-arrow="top"]::before {
+	content: '';
+	position: absolute;
+	top: -8px;
+	left: 24px;
+	border: 8px solid transparent;
+	border-top: none;
+	border-bottom-color: #ffffff;
+}
+
+/* 말풍선 꼬리 (위방향 — 아래쪽 요소에 붙을 때) */
+.tour-callout[data-arrow="bottom"]::before {
+	content: '';
+	position: absolute;
+	bottom: -8px;
+	left: 24px;
+	border: 8px solid transparent;
+	border-bottom: none;
+	border-top-color: #ffffff;
+}
+
+/* 말풍선 꼬리 (왼쪽방향 — 오른쪽 요소에 붙을 때) */
+.tour-callout[data-arrow="left"]::before {
+	content: '';
+	position: absolute;
+	left: -8px;
+	top: 28px;
+	border: 8px solid transparent;
+	border-left: none;
+	border-right-color: #ffffff;
+}
+
+/* 말풍선 꼬리 (오른쪽방향 — 왼쪽 요소에 붙을 때) */
+.tour-callout[data-arrow="right"]::before {
+	content: '';
+	position: absolute;
+	right: -8px;
+	top: 28px;
+	border: 8px solid transparent;
+	border-right: none;
+	border-left-color: #ffffff;
+}
+
 
 
 
