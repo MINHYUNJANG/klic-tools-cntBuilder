@@ -345,6 +345,11 @@ table .list_st4 > li {color: #333;}
 .tbl_LL_none {border-left: none !important;}
 .tbl_LR_none {border-right: none !important;}
 
+/* 테이블 셀 개별 정렬 */
+th.al, td.al { text-align: left; }
+th.ac, td.ac { text-align: center; }
+th.ar, td.ar { text-align: right; }
+
 li.bu_none:before {display: none !important;}
 
 /* 리스트 : 가로 나열 */

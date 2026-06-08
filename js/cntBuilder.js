@@ -561,6 +561,7 @@ async function loadHtmlTemplate(path) {
 	const isSmartInline = !!config.smartInline;
 	const tabDefaults = config.tabDefaults || null;
 	const accordionDefaults = config.accordionDefaults || null;
+	const discloserDefaults = config.discloserDefaults || null;
 
 	return {
 		id,
@@ -574,6 +575,7 @@ async function loadHtmlTemplate(path) {
 		isSmartInline,
 		tabDefaults,
 		accordionDefaults,
+		discloserDefaults,
 		element,
 		addRowWrap,
 		isRootWrap,
@@ -793,7 +795,7 @@ function createBlock(type) {
 		block.accordionSize = template.accordionDefaults.size || '';
 	}
 	// discloser 블록: discloserTitle / discloserContent 초기화
-	if (templateCategories[type] === 'discloser' && template.discloserDefaults) {
+	if (type === 'accordion-03' && template.discloserDefaults) {
 		block.discloserTitle = template.discloserDefaults.title || 'Discloser';
 		block.discloserContent = template.discloserDefaults.content || '';
 	}
@@ -808,6 +810,10 @@ function createBlock(type) {
 		if (type === 'button-05') {
 			block.btnIconPos = 'before';
 		}
+	}
+	// table 블록: 기본값 초기화
+	if (templateCategories[type] === 'table') {
+		initTableBlock(block);
 	}
 	// process 블록: 4개 기본 단계 초기화
 	if (templateCategories[type] === 'process') {
@@ -1161,6 +1167,439 @@ function renderPropsListRows(block) {
 	// 이벤트는 컨테이너 위임 방식으로 처리 (initBlockPropsPanelRowDelegation에서 등록)
 }
 
+/* ── table 블록 동적 렌더링 ── */
+
+let _tableRowSeq = 0;
+
+function _newTableRowKey(block) {
+	const prefix = block.id.replace(/[^a-zA-Z0-9]/g, '_');
+	return `${prefix}_tr${_tableRowSeq++}`;
+}
+
+function initTableBlock(block) {
+	block.tableColCount = 4;
+	block.tableColWidthMode = 'auto';
+	block.tableColWidths = ['25%', '25%', '25%', '25%'];
+	block.tableHasThead = true;
+	block.tableHasTbody = true;
+	block.tableHasTfoot = false;
+
+	const item = block.items[0];
+
+	const r0 = _newTableRowKey(block);
+	block.tableTheadRows = [{ key: r0, thAlign: '', tdAlign: '' }];
+	for (let c = 0; c < 4; c++) item[`${r0}_c${c}`] = 'th';
+
+	const r1 = _newTableRowKey(block);
+	const r2 = _newTableRowKey(block);
+	block.tableTbodyRows = [
+		{ key: r1, thAlign: '', tdAlign: '', cellTags: Array(4).fill('td') },
+		{ key: r2, thAlign: '', tdAlign: '', cellTags: Array(4).fill('td') }
+	];
+	for (let c = 0; c < 4; c++) item[`${r1}_c${c}`] = 'td';
+	for (let c = 0; c < 4; c++) item[`${r2}_c${c}`] = 'td';
+
+	block.tableTfootRows = [];
+	if (!block.cellSpan) block.cellSpan = {};
+	if (!block.tableScroll) block.tableScroll = '';
+}
+
+function generateTableCaption(block, item) {
+	const colCount = block.tableColCount || 4;
+	let texts = [];
+
+	if (block.tableHasThead && block.tableTheadRows && block.tableTheadRows.length > 0) {
+		const row = block.tableTheadRows[0];
+		for (let c = 0; c < colCount; c++) {
+			const t = (item[`${row.key}_c${c}`] || '').replace(/<[^>]+>/g, '').trim();
+			if (t) texts.push(t);
+		}
+	}
+
+	if (texts.length === 0 && block.tableTbodyRows && block.tableTbodyRows.length > 0) {
+		const row = block.tableTbodyRows[0];
+		for (let c = 0; c < colCount; c++) {
+			const t = (item[`${row.key}_c${c}`] || '').replace(/<[^>]+>/g, '').trim();
+			if (t) texts.push(t);
+		}
+	}
+
+	if (texts.length === 0) return '테이블 정보를 보여주는 테이블입니다.';
+	return `${texts.join(', ')} 정보를 보여주는 테이블입니다.`;
+}
+
+function _computeTableHiddenCells(block, rows) {
+	const hiddenCells = new Set();
+	const colCount = block.tableColCount || 4;
+	const cellSpan = block.cellSpan || {};
+	rows.forEach((rowData, rowIdx) => {
+		for (let c = 0; c < colCount; c++) {
+			const cellKey = `${rowData.key}_c${c}`;
+			if (hiddenCells.has(cellKey)) continue;
+			const span = cellSpan[cellKey];
+			if (!span) continue;
+			const colspan = Math.min(Math.max(span.colspan || 1, 1), colCount - c);
+			const rowspan = Math.min(Math.max(span.rowspan || 1, 1), rows.length - rowIdx);
+			for (let dr = 0; dr < rowspan; dr++) {
+				for (let dc = 0; dc < colspan; dc++) {
+					if (dr === 0 && dc === 0) continue;
+					const futureRow = rows[rowIdx + dr];
+					if (!futureRow) continue;
+					hiddenCells.add(`${futureRow.key}_c${c + dc}`);
+				}
+			}
+		}
+	});
+	return hiddenCells;
+}
+
+function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) {
+	const tr = document.createElement('tr');
+	const colCount = block.tableColCount || 4;
+	const isThSection = sectionTag === 'thead' || sectionTag === 'tfoot';
+	const cellSpan = block.cellSpan || {};
+
+	for (let c = 0; c < colCount; c++) {
+		const cellKey = `${rowData.key}_c${c}`;
+		if (hiddenCells && hiddenCells.has(cellKey)) continue;
+		const cellTag = isThSection ? 'th' : (rowData.cellTags?.[c] || 'td');
+		const alignVal = cellTag === 'th' ? (rowData.thAlign || '') : (rowData.tdAlign || '');
+		const cell = document.createElement(cellTag);
+		if (alignVal) cell.className = alignVal;
+		if (cellTag === 'th') cell.setAttribute('scope', isThSection && sectionTag === 'thead' ? 'col' : 'row');
+		const span = cellSpan[cellKey];
+		if (span?.colspan > 1) cell.setAttribute('colspan', String(span.colspan));
+		if (span?.rowspan > 1) cell.setAttribute('rowspan', String(span.rowspan));
+		cell.innerHTML = item[cellKey] || '';
+		if (editable) {
+			cell.dataset.editField = cellKey;
+			cell.dataset.blockId = block.id;
+			cell.dataset.columnIndex = '0';
+			cell.dataset.tableSection = sectionTag;
+			cell.dataset.tableRowKey = rowData.key;
+		}
+		tr.appendChild(cell);
+	}
+	return tr;
+}
+
+function renderTableDynamically(block, item, columnIndex, editable) {
+	const wrapper = document.createElement('div');
+	wrapper.className = block.tableScroll ? `tbl-st ${block.tableScroll}` : 'tbl-st';
+
+	const table = document.createElement('table');
+
+	const caption = document.createElement('caption');
+	caption.textContent = generateTableCaption(block, item);
+	table.appendChild(caption);
+
+	const colgroup = document.createElement('colgroup');
+	const colCount = block.tableColCount || 4;
+	if (block.tableColWidthMode === 'manual' && Array.isArray(block.tableColWidths) && block.tableColWidths.length === colCount) {
+		block.tableColWidths.forEach(w => {
+			const col = document.createElement('col');
+			col.style.width = w;
+			colgroup.appendChild(col);
+		});
+	} else {
+		const col = document.createElement('col');
+		col.setAttribute('span', String(colCount));
+		col.style.width = `calc(100% / ${colCount})`;
+		colgroup.appendChild(col);
+	}
+	table.appendChild(colgroup);
+
+	if (block.tableHasThead && block.tableTheadRows && block.tableTheadRows.length) {
+		const thead = document.createElement('thead');
+		const theadHidden = _computeTableHiddenCells(block, block.tableTheadRows);
+		block.tableTheadRows.forEach(row => thead.appendChild(_buildTableTr(block, item, row, 'thead', editable, theadHidden)));
+		table.appendChild(thead);
+	}
+
+	if (block.tableHasTbody && block.tableTbodyRows && block.tableTbodyRows.length) {
+		const tbody = document.createElement('tbody');
+		const tbodyHidden = _computeTableHiddenCells(block, block.tableTbodyRows);
+		block.tableTbodyRows.forEach(row => tbody.appendChild(_buildTableTr(block, item, row, 'tbody', editable, tbodyHidden)));
+		table.appendChild(tbody);
+	}
+
+	if (block.tableHasTfoot && block.tableTfootRows && block.tableTfootRows.length) {
+		const tfoot = document.createElement('tfoot');
+		const tfootHidden = _computeTableHiddenCells(block, block.tableTfootRows);
+		block.tableTfootRows.forEach(row => tfoot.appendChild(_buildTableTr(block, item, row, 'tfoot', editable, tfootHidden)));
+		table.appendChild(tfoot);
+	}
+
+	wrapper.appendChild(table);
+	if (!editable) stripEditorAttributes(wrapper);
+	return wrapper;
+}
+
+function _addTableSection(block, sectionTag) {
+	const hasKey = sectionTag === 'thead' ? 'tableHasThead' : sectionTag === 'tfoot' ? 'tableHasTfoot' : 'tableHasTbody';
+	const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+	block[hasKey] = true;
+	if (!block[rowsKey] || !block[rowsKey].length) {
+		block[rowsKey] = [];
+		_addTableRow(block, sectionTag);
+	}
+}
+
+function _removeTableSection(block, sectionTag) {
+	if (sectionTag === 'tbody') return;
+	const hasKey = sectionTag === 'thead' ? 'tableHasThead' : 'tableHasTfoot';
+	const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : 'tableTfootRows';
+	const colCount = block.tableColCount || 4;
+	const rows = block[rowsKey] || [];
+	rows.forEach(row => {
+		for (let c = 0; c < colCount; c++) {
+			block.items.forEach(item => { delete item[`${row.key}_c${c}`]; });
+			if (block.cellSpan) delete block.cellSpan[`${row.key}_c${c}`];
+		}
+	});
+	block[hasKey] = false;
+	block[rowsKey] = [];
+}
+
+function _addTableRow(block, sectionTag) {
+	const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+	if (!block[rowsKey]) block[rowsKey] = [];
+	const rowKey = _newTableRowKey(block);
+	const rowInit = { key: rowKey, thAlign: '', tdAlign: '' };
+	if (sectionTag === 'tbody') rowInit.cellTags = Array(block.tableColCount || 4).fill('td');
+	block[rowsKey].push(rowInit);
+	const colCount = block.tableColCount || 4;
+	const defaultContent = sectionTag === 'tbody' ? 'td' : 'th';
+	block.items.forEach(item => {
+		for (let c = 0; c < colCount; c++) item[`${rowKey}_c${c}`] = defaultContent;
+	});
+}
+
+function _removeTableRow(block, sectionTag, rowKey) {
+	const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+	const rows = block[rowsKey] || [];
+	if (sectionTag === 'tbody' && rows.length <= 1) return;
+	const idx = rows.findIndex(r => r.key === rowKey);
+	if (idx < 0) return;
+	rows.splice(idx, 1);
+	const colCount = block.tableColCount || 4;
+	block.items.forEach(item => {
+		for (let c = 0; c < colCount; c++) delete item[`${rowKey}_c${c}`];
+	});
+	if (block.cellSpan) {
+		for (let c = 0; c < colCount; c++) delete block.cellSpan[`${rowKey}_c${c}`];
+	}
+}
+
+function _syncTableCellKeys(block, oldCount, newCount) {
+	const sectionDefs = [
+		{ rowsKey: 'tableTheadRows', sectionTag: 'thead' },
+		{ rowsKey: 'tableTbodyRows', sectionTag: 'tbody' },
+		{ rowsKey: 'tableTfootRows', sectionTag: 'tfoot' }
+	];
+	sectionDefs.forEach(({ rowsKey, sectionTag }) => {
+		const rows = block[rowsKey] || [];
+		const defaultContent = sectionTag === 'tbody' ? 'td' : 'th';
+		rows.forEach(row => {
+			if (newCount > oldCount) {
+				block.items.forEach(item => {
+					for (let c = oldCount; c < newCount; c++) item[`${row.key}_c${c}`] = defaultContent;
+				});
+				if (sectionTag === 'tbody') {
+					if (!row.cellTags) row.cellTags = Array(oldCount).fill('td');
+					for (let c = oldCount; c < newCount; c++) row.cellTags.push('td');
+				}
+			} else {
+				block.items.forEach(item => {
+					for (let c = newCount; c < oldCount; c++) delete item[`${row.key}_c${c}`];
+				});
+				if (block.cellSpan) {
+					for (let c = newCount; c < oldCount; c++) delete block.cellSpan[`${row.key}_c${c}`];
+				}
+				if (sectionTag === 'tbody' && row.cellTags) {
+					row.cellTags = row.cellTags.slice(0, newCount);
+				}
+			}
+		});
+	});
+}
+
+function _renderTableSectionRows(block, sectionTag, rows) {
+	if (!rows || !rows.length) return '';
+	return rows.map((row, idx) => {
+		const thAlignVal = row.thAlign || '';
+		const tdAlignVal = row.tdAlign || '';
+		const removeDisabled = sectionTag === 'tbody' && rows.length <= 1;
+		const colCount = block.tableColCount || 4;
+		const cellTags = row.cellTags || Array(colCount).fill('td');
+		const alignBtnGroup = (cellType, currentAlign) =>
+			['al', 'ac', 'ar'].map(a => `<button type="button" class="props-table-align-btn${currentAlign === a ? ' is-active' : ''}" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" data-cell-type="${cellType}" data-align="${a}" title="${a === 'al' ? '왼쪽' : a === 'ac' ? '중앙' : '오른쪽'}"><i class="ri-align-${a === 'al' ? 'left' : a === 'ac' ? 'center' : 'right'}"></i></button>`).join('');
+		const tagToggle = sectionTag === 'tbody' ? `<div class="props-table-tag-toggle">
+				<span class="props-table-align-label" style="min-width:1.8rem">태그</span>
+				<div class="props-table-tag-cells">${Array.from({ length: colCount }, (_, c) => {
+					const t = cellTags[c] || 'td';
+					return `<button type="button" class="props-table-cell-tag-btn${t === 'th' ? ' is-th' : ''}" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" title="열 ${c + 1}: ${t} (클릭하여 전환)">${t}</button>`;
+				}).join('')}</div>
+			</div>` : '';
+		return `<div class="props-list-row props-table-row">
+			<div class="props-table-row-header">
+				<span class="props-list-row-dot"></span>
+				<span class="props-list-row-text">행 ${idx + 1}</span>
+				<button type="button" class="props-list-row-remove-btn props-table-tr-remove-btn" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" title="행 삭제"${removeDisabled ? ' disabled' : ''}><i class="ri-subtract-line"></i></button>
+			</div>
+			${tagToggle}
+			<div class="props-table-row-aligns">
+				<div class="props-table-align-btns"><span class="props-table-align-label">th</span>${alignBtnGroup('th', thAlignVal)}</div>
+				${sectionTag === 'tbody' ? `<div class="props-table-align-btns"><span class="props-table-align-label">td</span>${alignBtnGroup('td', tdAlignVal)}</div>` : ''}
+			</div>
+		</div>`;
+	}).join('');
+}
+
+function renderPropsTableStructure(block) {
+	const container = document.getElementById('propsTableStructure');
+	if (!container) return;
+
+	const sections = [
+		{ tag: 'thead', label: 'thead (머리글)', korean: '머리글', hasKey: 'tableHasThead', rowsKey: 'tableTheadRows', canRemove: true },
+		{ tag: 'tbody', label: 'tbody (본문)', korean: '본문', hasKey: 'tableHasTbody', rowsKey: 'tableTbodyRows', canRemove: false },
+		{ tag: 'tfoot', label: 'tfoot (바닥글)', korean: '바닥글', hasKey: 'tableHasTfoot', rowsKey: 'tableTfootRows', canRemove: true }
+	];
+
+	container.innerHTML = sections.map(({ tag, label, korean, hasKey, rowsKey, canRemove }) => {
+		const hasSection = !!block[hasKey];
+		const rows = block[rowsKey] || [];
+
+		if (!hasSection) {
+			return `<div class="props-table-section-empty">
+				<p class="props-section-label" style="margin-top:0.75rem">${label}</p>
+				<button type="button" class="props-add-row-btn props-table-add-section-btn" data-block-id="${block.id}" data-section="${tag}">
+					<i class="ri-add-line" aria-hidden="true"></i> ${korean} 추가
+				</button>
+			</div>`;
+		}
+
+		return `<div class="props-table-section-group">
+			<p class="props-section-label" style="margin-top:0.75rem">${label}</p>
+			<div class="props-card props-list-card">${_renderTableSectionRows(block, tag, rows)}</div>
+			<div style="display:flex;gap:0.4rem;margin-top:0.3rem">
+				<button type="button" class="props-add-row-btn" style="flex:1;margin-top:0" data-block-id="${block.id}" data-add-tr="${tag}">
+					<i class="ri-add-line" aria-hidden="true"></i> 행 추가
+				</button>
+				${canRemove ? `<button type="button" class="props-add-row-btn props-table-remove-section-btn" style="margin-top:0;flex:1;color:#c00;border-color:#fcc" data-block-id="${block.id}" data-remove-section="${tag}">${korean} 제거</button>` : ''}
+			</div>
+		</div>`;
+	}).join('');
+}
+
+function renderPropsTableSection(block) {
+	const colCountInput = document.getElementById('propTableColCount');
+	const colWidthModeSelect = document.getElementById('propTableColWidthMode');
+	const colWidthsCard = document.getElementById('propsTableColWidthsCard');
+	const colWidthsContainer = document.getElementById('propsTableColWidthsContainer');
+	const notice = document.getElementById('propsTableColWidthsNotice');
+
+	if (colCountInput) colCountInput.value = block.tableColCount || 4;
+	if (colWidthModeSelect) colWidthModeSelect.value = block.tableColWidthMode || 'auto';
+	const scrollSelect = document.getElementById('propTableScroll');
+	if (scrollSelect) scrollSelect.value = block.tableScroll || '';
+
+	const isManual = block.tableColWidthMode === 'manual';
+	if (colWidthsCard) colWidthsCard.style.display = isManual ? '' : 'none';
+	if (notice) notice.style.display = 'none';
+
+	if (isManual && colWidthsContainer) {
+		const colCount = block.tableColCount || 4;
+		const widths = Array.isArray(block.tableColWidths) && block.tableColWidths.length === colCount
+			? block.tableColWidths
+			: Array(colCount).fill('');
+		colWidthsContainer.innerHTML = Array.from({ length: colCount }, (_, i) => `
+			<div class="props-row${i === colCount - 1 ? ' props-row--last' : ''}">
+				<span class="props-label">열 ${i + 1}</span>
+				<div class="props-input-unit">
+					<input type="text" class="props-input props-table-col-width-input" style="width:4rem" data-col-idx="${i}" placeholder="예:25" value="${escapeAttr((widths[i] || '').replace('%', ''))}">
+					<span class="props-unit">%</span>
+				</div>
+			</div>`).join('');
+	}
+
+	renderPropsTableStructure(block);
+}
+
+let _tableCellPopoverInfo = null;
+
+function openTableCellSpanPopover(cell) {
+	if (document.body.classList.contains('preview-mode')) return;
+	const blockId = cell.dataset.blockId;
+	const cellKey = cell.dataset.editField;
+	const sectionTag = cell.dataset.tableSection;
+	if (!blockId || !cellKey || !sectionTag) return;
+
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+
+	if (!block.cellSpan) block.cellSpan = {};
+	const span = block.cellSpan[cellKey] || {};
+
+	const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+	const rows = block[rowsKey] || [];
+	const rowKey = cell.dataset.tableRowKey;
+	const rowIdx = rows.findIndex(r => r.key === rowKey);
+	const colCount = block.tableColCount || 4;
+	const parts = cellKey.split('_c');
+	const colIdx = parseInt(parts[parts.length - 1]);
+	const maxColspan = colCount - colIdx;
+	const maxRowspan = rows.length - rowIdx;
+
+	const popover = document.getElementById('tableCellSpanPopover');
+	if (!popover) return;
+
+	const colspanInput = document.getElementById('tableCellColspan');
+	const rowspanInput = document.getElementById('tableCellRowspan');
+	if (colspanInput) { colspanInput.value = span.colspan || 1; colspanInput.max = String(maxColspan); }
+	if (rowspanInput) { rowspanInput.value = span.rowspan || 1; rowspanInput.max = String(maxRowspan); }
+
+	_tableCellPopoverInfo = { blockId, cellKey };
+
+	const rect = cell.getBoundingClientRect();
+	const popW = 180;
+	let left = rect.left;
+	if (left + popW > window.innerWidth - 10) left = window.innerWidth - popW - 10;
+	let top = rect.top - 120;
+	if (top < 8) top = rect.bottom + 6;
+
+	popover.style.left = `${left}px`;
+	popover.style.top = `${top}px`;
+	popover.style.display = 'block';
+}
+
+function closeTableCellSpanPopover() {
+	const popover = document.getElementById('tableCellSpanPopover');
+	if (popover) popover.style.display = 'none';
+	_tableCellPopoverInfo = null;
+}
+
+function applyTableCellSpan() {
+	if (!_tableCellPopoverInfo) return;
+	const { blockId, cellKey } = _tableCellPopoverInfo;
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+
+	const colspan = Math.max(1, parseInt(document.getElementById('tableCellColspan')?.value) || 1);
+	const rowspan = Math.max(1, parseInt(document.getElementById('tableCellRowspan')?.value) || 1);
+
+	if (!block.cellSpan) block.cellSpan = {};
+	if (colspan === 1 && rowspan === 1) {
+		delete block.cellSpan[cellKey];
+	} else {
+		block.cellSpan[cellKey] = { colspan, rowspan };
+	}
+
+	pushHistory();
+	closeTableCellSpanPopover();
+	render();
+}
+
 function renderPropsTabItems(block) {
 	const container = document.getElementById('propsTabItemsContainer');
 	if (!container) return;
@@ -1374,7 +1813,7 @@ function openBlockProps(blockId) {
 
 	const accordionSection = document.getElementById('propsAccordionSection');
 	if (accordionSection) {
-		const isAccordion = !isMixInnerBlock && templateCategories[block.type] === 'accordion';
+		const isAccordion = !isMixInnerBlock && templateCategories[block.type] === 'accordion' && block.type !== 'accordion-03';
 		accordionSection.style.display = isAccordion ? '' : 'none';
 		if (isAccordion) {
 			const sizeSelect = document.getElementById('propAccordionSize');
@@ -1385,7 +1824,7 @@ function openBlockProps(blockId) {
 
 	const discloserSection = document.getElementById('propsDiscloserSection');
 	if (discloserSection) {
-		const isDiscloser = !isMixInnerBlock && templateCategories[block.type] === 'discloser';
+		const isDiscloser = !isMixInnerBlock && block.type === 'accordion-03';
 		discloserSection.style.display = isDiscloser ? '' : 'none';
 		if (isDiscloser) {
 			const titleInput = document.getElementById('propDiscloserTitle');
@@ -1400,6 +1839,13 @@ function openBlockProps(blockId) {
 		const isButtonContainer = !isMixInnerBlock && block.type === 'button-00';
 		buttonInnerSection.style.display = isButtonContainer ? '' : 'none';
 		if (isButtonContainer) renderPropsButtonInnerItems(block);
+	}
+
+	const tableSection = document.getElementById('propsTableSection');
+	if (tableSection) {
+		const isTable = !isMixInnerBlock && templateCategories[block.type] === 'table';
+		tableSection.style.display = isTable ? '' : 'none';
+		if (isTable) renderPropsTableSection(block);
 	}
 
 	const buttonSection = document.getElementById('propsButtonSection');
@@ -1835,7 +2281,7 @@ function initBlockPropsPanel() {
 	document.getElementById('propDiscloserTitle')?.addEventListener('input', function () {
 		if (!_propsBlockId) return;
 		const block = state.blocks.find(b => b.id === _propsBlockId);
-		if (!block || templateCategories[block.type] !== 'discloser') return;
+		if (!block || block.type !== 'accordion-03') return;
 		block.discloserTitle = this.value;
 		render();
 	});
@@ -1844,7 +2290,7 @@ function initBlockPropsPanel() {
 	document.getElementById('propDiscloserContent')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
 		const block = state.blocks.find(b => b.id === _propsBlockId);
-		if (!block || templateCategories[block.type] !== 'discloser') return;
+		if (!block || block.type !== 'accordion-03') return;
 		pushHistory();
 		block.discloserContent = this.value;
 		render();
@@ -1871,9 +2317,185 @@ function initBlockPropsPanel() {
 				const accSection = document.getElementById('propsAccordionSection');
 				if (!accSection || accSection.style.display === 'none') return;
 				renderPropsAccordionItems(b);
+			} else if (templateCategories[b.type] === 'table') {
+				const tblSection = document.getElementById('propsTableSection');
+				if (!tblSection || tblSection.style.display === 'none') return;
+				renderPropsTableStructure(b);
 			}
 		});
 		panelObserver.observe(canvasGridEl, { childList: true });
+	}
+
+	// 테이블: 열 수 변경
+	document.getElementById('propTableColCount')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'table') return;
+		const newCount = Math.max(1, Math.min(12, Number(this.value) || 4));
+		this.value = newCount;
+		const oldCount = block.tableColCount || 4;
+		if (newCount === oldCount) return;
+		pushHistory();
+		block.tableColCount = newCount;
+		block.tableColWidths = Array.from({ length: newCount }, (_, i) => `${Math.round(100 / newCount)}%`);
+		_syncTableCellKeys(block, oldCount, newCount);
+		render();
+		renderPropsTableSection(block);
+	});
+
+	// 테이블: 너비 조절 모드 변경
+	document.getElementById('propTableColWidthMode')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'table') return;
+		pushHistory();
+		block.tableColWidthMode = this.value;
+		if (this.value === 'manual') {
+			const n = block.tableColCount || 4;
+			block.tableColWidths = Array.from({ length: n }, () => `${Math.round(100 / n)}%`);
+		}
+		render();
+		renderPropsTableSection(block);
+	});
+
+	// 테이블: 가로 스크롤 설정
+	document.getElementById('propTableScroll')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'table') return;
+		pushHistory();
+		block.tableScroll = this.value;
+		render();
+	});
+
+	// 테이블: 수동 너비 적용
+	document.getElementById('propsApplyTableColWidths')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'table') return;
+		const inputs = document.querySelectorAll('#propsTableColWidthsContainer .props-table-col-width-input');
+		const nums = [];
+		let total = 0;
+		let valid = true;
+		inputs.forEach(input => {
+			const val = parseFloat(input.value.trim());
+			if (isNaN(val) || val <= 0) { valid = false; return; }
+			nums.push(val);
+			total += val;
+		});
+		const notice = document.getElementById('propsTableColWidthsNotice');
+		if (!valid || Math.abs(total - 100) > 0.1) {
+			if (notice) notice.style.display = '';
+			return;
+		}
+		if (notice) notice.style.display = 'none';
+		pushHistory();
+		block.tableColWidths = nums.map(w => `${w}%`);
+		render();
+	});
+
+	// 테이블: 구조 관리 (섹션 추가/제거, tr 추가/제거, 정렬)
+	const tableStructureContainer = document.getElementById('propsTableStructure');
+	if (tableStructureContainer) {
+		tableStructureContainer.addEventListener('click', event => {
+			// 섹션 추가
+			const addSectionBtn = event.target.closest('.props-table-add-section-btn');
+			if (addSectionBtn) {
+				const blockId = addSectionBtn.dataset.blockId;
+				const sectionTag = addSectionBtn.dataset.section;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				pushHistory();
+				_addTableSection(block, sectionTag);
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+
+			// 섹션 제거
+			const removeSectionBtn = event.target.closest('.props-table-remove-section-btn');
+			if (removeSectionBtn) {
+				const blockId = removeSectionBtn.dataset.blockId;
+				const sectionTag = removeSectionBtn.dataset.removeSection;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				pushHistory();
+				_removeTableSection(block, sectionTag);
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+
+			// tr 추가
+			const addTrBtn = event.target.closest('[data-add-tr]');
+			if (addTrBtn) {
+				const blockId = addTrBtn.dataset.blockId;
+				const sectionTag = addTrBtn.dataset.addTr;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				pushHistory();
+				_addTableRow(block, sectionTag);
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+
+			// tr 제거
+			const removeTrBtn = event.target.closest('.props-table-tr-remove-btn');
+			if (removeTrBtn && !removeTrBtn.disabled) {
+				const blockId = removeTrBtn.dataset.blockId;
+				const sectionTag = removeTrBtn.dataset.section;
+				const rowKey = removeTrBtn.dataset.rowKey;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				pushHistory();
+				_removeTableRow(block, sectionTag, rowKey);
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+
+			// tbody 셀별 태그 토글 (th ↔ td)
+			const cellTagBtn = event.target.closest('.props-table-cell-tag-btn');
+			if (cellTagBtn) {
+				const blockId = cellTagBtn.dataset.blockId;
+				const rowKey = cellTagBtn.dataset.rowKey;
+				const colIdx = parseInt(cellTagBtn.dataset.colIdx);
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				const row = (block.tableTbodyRows || []).find(r => r.key === rowKey);
+				if (!row) return;
+				const colCount = block.tableColCount || 4;
+				if (!row.cellTags) row.cellTags = Array(colCount).fill('td');
+				pushHistory();
+				row.cellTags[colIdx] = row.cellTags[colIdx] === 'th' ? 'td' : 'th';
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+
+			// 정렬 버튼
+			const alignBtn = event.target.closest('.props-table-align-btn');
+			if (alignBtn) {
+				const blockId = alignBtn.dataset.blockId;
+				const sectionTag = alignBtn.dataset.section;
+				const rowKey = alignBtn.dataset.rowKey;
+				const cellType = alignBtn.dataset.cellType;
+				const align = alignBtn.dataset.align;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+				const rows = block[rowsKey] || [];
+				const row = rows.find(r => r.key === rowKey);
+				if (!row) return;
+				pushHistory();
+				const alignProp = cellType === 'th' ? 'thAlign' : 'tdAlign';
+				row[alignProp] = row[alignProp] === align ? '' : align;
+				render();
+				renderPropsTableStructure(block);
+				return;
+			}
+		});
 	}
 
 	// 패널 외부 클릭 시 닫기
@@ -1883,10 +2505,20 @@ function initBlockPropsPanel() {
 		if (panel.contains(e.target)) return;
 		closeBlockProps();
 	});
+
+	// 테이블 셀 span 팝오버 적용
+	document.getElementById('tableCellSpanApply')?.addEventListener('click', applyTableCellSpan);
+	document.addEventListener('mousedown', e => {
+		const popover = document.getElementById('tableCellSpanPopover');
+		if (!popover || popover.style.display === 'none') return;
+		if (popover.contains(e.target)) return;
+		if (e.target.closest && e.target.closest('table [data-edit-field]')) return;
+		closeTableCellSpanPopover();
+	});
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
-const MIX_ALLOWED = new Set(['box', 'list', 'title-horizontal', 'title-vertical', 'divider', 'text', 'title', 'bullet', 'button']);
+const MIX_ALLOWED = new Set(['box', 'list', 'title-horizontal', 'title-vertical', 'divider', 'text', 'title', 'button']);
 
 // mix-inner-slot을 가진 컨테이너 블록 여부 판별
 function isMixContainer(type) {
@@ -3178,6 +3810,9 @@ function renderBuilderBlock(block, idx = 0, total = 1) {
 }
 
 function renderAddColumnWrapElement(template, item, block, columnIndex, editable) {
+	if (block && templateCategories[block.type] === 'table') {
+		return renderTableDynamically(block, item, columnIndex, editable);
+	}
 	if (item.rows && block && templateCategories[block.type] === 'list') {
 		return renderListDynamically(block, item, columnIndex, template.element, editable);
 	}
@@ -3296,6 +3931,17 @@ function deleteListItem(blockId, columnIndex, fieldKey) {
 
 function renderRepeatedColumns(block) {
 	const template = componentTemplates[block.type];
+
+	if (templateCategories[block.type] === 'table') {
+		const item = block.items[0];
+		if (!item) return '';
+		const el = renderTableDynamically(block, item, 0, true);
+		el.setAttribute('style', columnStyleVars(item));
+		el.classList.add('block-item');
+		el.dataset.blockId = block.id;
+		el.dataset.columnIndex = '0';
+		return elementToHtml(el);
+	}
 
 	if (templateCategories[block.type] === 'list' && block.items[0]?.rows) {
 		const item = block.items[0];
@@ -3726,7 +4372,7 @@ function buildColumnBlock(template, block, editable) {
 	}
 
 	// discloser 블록: 제목과 내용 주입
-	if (block && templateCategories[block.type] === 'discloser') {
+	if (block && block.type === 'accordion-03') {
 		const discloserEl = outer.querySelector('.discloser-st');
 		if (discloserEl) {
 			const titleBtn = discloserEl.querySelector(':scope > button.tit');
@@ -4148,6 +4794,18 @@ function bindRenderedEvents() {
 	});
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
+	});
+	// 테이블 셀 span 팝오버 (단일 클릭)
+	document.querySelectorAll('table [data-edit-field]').forEach(cell => {
+		cell.addEventListener('click', () => {
+			if (document.body.classList.contains('preview-mode')) return;
+			clearTimeout(cell._spanPopoverTimer);
+			cell._spanPopoverTimer = setTimeout(() => openTableCellSpanPopover(cell), 200);
+		});
+		cell.addEventListener('dblclick', () => {
+			clearTimeout(cell._spanPopoverTimer);
+			closeTableCellSpanPopover();
+		});
 	});
 	// 탭 항목 텍스트 인라인 편집
 	document.querySelectorAll('[data-tab-block-id]').forEach(aEl => {
@@ -5210,6 +5868,14 @@ function _generateBlocksMarkup() {
 				return _prettyHtml(_elementMarkup(el));
 			}).join('\n\n');
 			return _wrapInSection(block, idx, total, innerHtml);
+		} else if (templateCategories[block.type] === 'table') {
+			const item = block.items[0];
+			const outer = renderTableDynamically(block, item, 0, false);
+			if (outer.hasAttribute('style')) outer.removeAttribute('style');
+			applyItemStyles(outer, item, template);
+			_stripCssVars(outer);
+			_cleanBlockItem(outer);
+			return _wrapInSection(block, idx, total, _prettyHtml(_elementMarkup(outer)));
 		} else if (templateCategories[block.type] === 'list' && block.items[0]?.rows) {
 			const item = block.items[0];
 			const outer = renderListDynamically(block, item, 0, template.element, false);
@@ -5918,7 +6584,7 @@ async function init() {
 	document.getElementById('markupClose').addEventListener('click', closeMarkup);
 	document.getElementById('markupBackdrop').addEventListener('click', closeMarkup);
 	document.addEventListener('keydown', e => {
-		if (e.key === 'Escape') closeMarkup();
+		if (e.key === 'Escape') { closeMarkup(); closeTableCellSpanPopover(); }
 		if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
 			const active = document.activeElement;
 			if (active?.getAttribute('contenteditable') === 'true') return;
