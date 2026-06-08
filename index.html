@@ -115,9 +115,7 @@
 								<button type="button" data-template-filter="table">테이블</button>
 								<button type="button" data-template-filter="process">절차</button>
 								<button type="button" data-template-filter="accordion">아코디언</button>
-								<button type="button" data-template-filter="discloser">디스클로저</button>
 								<button type="button" data-template-filter="button">버튼</button>
-								<button type="button" data-template-filter="bullet">불릿</button>
 							</div>
 						</div>
 						<div class="component-list" id="componentList" aria-label="드래그 가능한 디자인 블록">
@@ -406,7 +404,42 @@
 				</div>
 			</div>
 
-			<div class="props-section" id="propsDiscloserSection" style="display:none">
+			<!-- 테이블 속성 패널 -->
+				<div class="props-section" id="propsTableSection" style="display:none">
+					<p class="props-section-label">열 설정</p>
+					<div class="props-card">
+						<div class="props-row">
+							<span class="props-label">열 수</span>
+							<input type="number" class="props-input" id="propTableColCount" min="1" max="12" style="width:4rem">
+						</div>
+						<div class="props-row">
+							<span class="props-label">너비 조절</span>
+							<select class="props-select" id="propTableColWidthMode">
+								<option value="auto">자동 (균등)</option>
+								<option value="manual">수동 입력</option>
+							</select>
+						</div>
+						<div class="props-row props-row--last">
+							<span class="props-label">가로 스크롤</span>
+							<select class="props-select" id="propTableScroll">
+								<option value="">기본</option>
+								<option value="scroll-w">태블릿~</option>
+								<option value="scroll-m">모바일~</option>
+							</select>
+						</div>
+					</div>
+					<div id="propsTableColWidthsCard" style="display:none">
+						<p class="props-section-label" style="margin-top:0.5rem">열 너비 입력 <small style="font-weight:400;color:#888">(합계 100%)</small></p>
+						<div class="props-card" id="propsTableColWidthsContainer"></div>
+						<button type="button" class="props-add-row-btn" id="propsApplyTableColWidths">
+							<i class="ri-check-line" aria-hidden="true"></i> 적용
+						</button>
+						<p class="props-notice" id="propsTableColWidthsNotice" style="display:none">각 열 너비의 합계가 100%가 되어야 합니다.</p>
+					</div>
+					<div id="propsTableStructure"></div>
+				</div>
+
+				<div class="props-section" id="propsDiscloserSection" style="display:none">
 				<p class="props-section-label">Discloser 설정</p>
 				<div class="props-card">
 					<div class="props-row" style="flex-direction:column;align-items:stretch;gap:0.3rem">
@@ -494,6 +527,20 @@
 				</div>
 			</div>
 		</div>
+	</div>
+
+	<!-- 테이블 셀 span 팝오버 -->
+	<div id="tableCellSpanPopover" class="table-span-popover">
+		<p class="table-span-popover-title">셀 병합 (colspan / rowspan)</p>
+		<div class="table-span-popover-row">
+			<label for="tableCellColspan">가로</label>
+			<input type="number" id="tableCellColspan" min="1" max="12" value="1">
+		</div>
+		<div class="table-span-popover-row">
+			<label for="tableCellRowspan">세로</label>
+			<input type="number" id="tableCellRowspan" min="1" max="12" value="1">
+		</div>
+		<button type="button" id="tableCellSpanApply" class="table-span-apply-btn">적용</button>
 	</div>
 
 	<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
