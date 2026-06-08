@@ -1786,6 +1786,15 @@ body[data-preview-device="tablet"] .builder-columns.columns-6 {
 	bottom: -8px;
 }
 
+.builder-block.is-over-inside-title {
+	outline: 2px dashed #e43131;
+	outline-offset: -4px;
+}
+
+.builder-block.is-over-inside-title::after {
+	display: none;
+}
+
 .block-controls {
 	position: absolute;
 	top: 8px;

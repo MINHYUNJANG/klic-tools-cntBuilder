@@ -102,6 +102,19 @@ function getDecorationCategory(templateId) {
 const templateCategories = {};
 const templateBasePaths = {}; // { 'box-01': 'templates/design_block/box/box-01', ... }
 
+// 타이틀 계층 (낮을수록 상위 레벨)
+const TITLE_HIERARCHY = ['title-01', 'title-02', 'title-03', 'title-04'];
+
+function isTitleBlock(type) {
+	return TITLE_HIERARCHY.includes(type);
+}
+
+function demoteTitleType(targetType) {
+	const idx = TITLE_HIERARCHY.indexOf(targetType);
+	if (idx < 0 || idx >= TITLE_HIERARCHY.length - 1) return null;
+	return TITLE_HIERARCHY[idx + 1];
+}
+
 const canvasGrid = document.getElementById('canvasGrid');
 const markupOutput = document.getElementById('markupOutput');
 const layoutStatus = document.getElementById('layoutStatus');
@@ -940,6 +953,42 @@ function removeBlock(blockId) {
 	if (state.selectedItem?.blockId === blockId) state.selectedItem = null;
 	state.blocks = state.blocks.filter(block => block.id !== blockId);
 	render();
+}
+
+function convertAndInsertTitleBlock(payload, targetBlockId, demotedType) {
+	pushHistory();
+	if (payload.startsWith('new-block:') || payload.startsWith('new-design-template:')) {
+		const block = createBlock(demotedType);
+		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
+		state.blocks.splice(targetIndex + 1, 0, block);
+		render();
+		const newEl = canvasGrid.querySelector(`[data-block-id="${block.id}"]`);
+		if (newEl) newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		selectBlock(block.id);
+	} else if (payload.startsWith('copy-block:')) {
+		const srcBlock = state.blocks.find(b => b.id === payload.replace('copy-block:', ''));
+		const block = createBlock(demotedType);
+		if (srcBlock?.items?.[0]?.data) block.items[0].data = cloneData(srcBlock.items[0].data);
+		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
+		state.blocks.splice(targetIndex + 1, 0, block);
+		render();
+		const newEl = canvasGrid.querySelector(`[data-block-id="${block.id}"]`);
+		if (newEl) newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		selectBlock(block.id);
+	} else if (payload.startsWith('existing-block:')) {
+		const blockId = payload.replace('existing-block:', '');
+		if (blockId === targetBlockId) return;
+		const movingBlock = state.blocks.find(b => b.id === blockId);
+		if (!movingBlock) return;
+		movingBlock.type = demotedType;
+		movingBlock.items[0].style = createStyleForType(demotedType);
+		const currentIndex = state.blocks.findIndex(b => b.id === blockId);
+		state.blocks.splice(currentIndex, 1);
+		const targetIndex = state.blocks.findIndex(b => b.id === targetBlockId);
+		state.blocks.splice(targetIndex + 1, 0, movingBlock);
+		render();
+		selectBlock(blockId);
+	}
 }
 
 /* ── list 블록 동적 행 관리 ── */
@@ -5115,14 +5164,36 @@ function bindRenderedEvents() {
 }
 
 function setBlockDropIndicator(block, event) {
-	const position = 'after';
 	clearDropIndicators(block);
-	block.dataset.dropPosition = position;
-	block.classList.add('is-over', `is-over-${position}`);
+	const payload = state.dragPayload;
+	const targetBlockData = state.blocks.find(b => b.id === block.dataset.blockId);
+
+	if (targetBlockData && isTitleBlock(targetBlockData.type)) {
+		let dragType = null;
+		if (payload.startsWith('new-block:')) {
+			dragType = payload.replace('new-block:', '');
+		} else if (payload.startsWith('existing-block:')) {
+			dragType = state.blocks.find(b => b.id === payload.replace('existing-block:', ''))?.type;
+		} else if (payload.startsWith('copy-block:')) {
+			dragType = state.blocks.find(b => b.id === payload.replace('copy-block:', ''))?.type;
+		}
+		if (dragType && isTitleBlock(dragType) && demoteTitleType(targetBlockData.type)) {
+			const rect = block.getBoundingClientRect();
+			const ratio = (event.clientY - rect.top) / rect.height;
+			if (ratio >= 0.2 && ratio <= 0.8) {
+				block.dataset.dropPosition = 'inside-title';
+				block.classList.add('is-over', 'is-over-inside-title');
+				return;
+			}
+		}
+	}
+
+	block.dataset.dropPosition = 'after';
+	block.classList.add('is-over', 'is-over-after');
 }
 
 function clearBlockDropIndicator(block) {
-	block.classList.remove('is-over', 'is-over-before', 'is-over-after');
+	block.classList.remove('is-over', 'is-over-before', 'is-over-after', 'is-over-inside-title');
 	delete block.dataset.dropPosition;
 }
 
@@ -5734,6 +5805,19 @@ function handleBlockDrop(event) {
 	const position = event.currentTarget.dataset.dropPosition || 'after';
 	clearDropIndicators();
 	state.dragPayload = '';
+
+	// 타이틀 블록을 타이틀 블록 중앙에 드롭: 한 단계 아래 레벨로 변환하여 삽입
+	if (position === 'inside-title') {
+		const targetBlockData = state.blocks.find(b => b.id === targetBlockId);
+		if (targetBlockData && isTitleBlock(targetBlockData.type)) {
+			const demotedType = demoteTitleType(targetBlockData.type);
+			if (demotedType) {
+				convertAndInsertTitleBlock(payload, targetBlockId, demotedType);
+				return;
+			}
+		}
+	}
+
 	if (payload.startsWith('new-block:')) {
 		addBlock(payload.replace('new-block:', ''), targetBlockId, position);
 		return;
