@@ -257,6 +257,13 @@ input.mx-w40 {width: 100%; max-width: 40rem;}
 .btn-st.icon{ display: flex; gap: 0.4rem; align-items: center;}
 .btn-st.icon-only{ padding: 0.4rem 0.5rem;}
 
+/* Button : layout */
+.btns{ display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;}
+.btns.ac { justify-content: center;}
+.btns.al { justify-content: left;}
+.btns.ar { justify-content: right;}
+.btns > .mix-inner-item{ margin-bottom: 0 !important;}
+
 /* Table */
 div[class*='tbl-st'] {position: relative; margin-top: 0.25rem; width: 100%; background: #fff; overflow: hidden;}
 div[class*='tbl-st'] > table {position: relative; margin-left: -1px; width: 100%; text-align: center; border-top: 2px solid var(--color-primary); -webkit-overflow-scrolling: touch; word-break: keep-all; }
