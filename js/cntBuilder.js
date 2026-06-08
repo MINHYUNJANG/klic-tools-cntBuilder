@@ -799,7 +799,7 @@ function createBlock(type) {
 	}
 	// button 블록: 기본값 초기화
 	if (templateCategories[type] === 'button') {
-		block.blockWidth = 'auto';
+		block.blockWidth = type === 'button-00' ? '' : 'auto';
 		block.btnSize = '';
 		block.btnOpenType = 'default';
 		if (type === 'button-05' || type === 'button-06') {
@@ -1184,6 +1184,60 @@ function renderPropsTabItems(block) {
 	}).join('');
 }
 
+function renderPropsButtonInnerItems(block) {
+	const container = document.getElementById('propsButtonInnerContainer');
+	if (!container) return;
+	const items = block.innerBlocks || [];
+	if (items.length === 0) {
+		container.innerHTML = '<p style="color:#888;font-size:0.8rem;padding:0.3rem 0">추가된 버튼이 없습니다.</p>';
+		return;
+	}
+	const BTN_TYPE_NAMES = { 'button-01': '주요버튼', 'button-02': '보조버튼', 'button-03': '기본버튼', 'button-04': '강조버튼', 'button-05': '아이콘버튼', 'button-06': '아이콘전용' };
+	container.innerHTML = items.map((ib, idx) => {
+		const typeName = BTN_TYPE_NAMES[ib.type] || ib.type;
+		const isIconBtn = ib.type === 'button-05' || ib.type === 'button-06';
+		const isNewWindow = (ib.btnOpenType || 'default') === 'new-window';
+		const bid = escapeAttr(block.id);
+		const sizeOpts = [['', '기본'], ['size-sm', 'Small'], ['size-lg', 'Large'], ['size-exlg', 'Extra Large']]
+			.map(([v, l]) => `<option value="${v}"${(ib.btnSize || '') === v ? ' selected' : ''}>${l}</option>`).join('');
+		const openOpts = [['default', '기본'], ['new-window', '새창']]
+			.map(([v, l]) => `<option value="${v}"${(ib.btnOpenType || 'default') === v ? ' selected' : ''}>${l}</option>`).join('');
+		const iconOpts = [['ri-external-link-line', '새창 아이콘'], ['ri-phone-fill', '전화 아이콘']]
+			.map(([v, l]) => `<option value="${v}"${(ib.btnIcon || 'ri-external-link-line') === v ? ' selected' : ''}>${l}</option>`).join('');
+		const posOpts = [['before', '텍스트 앞'], ['after', '텍스트 뒤']]
+			.map(([v, l]) => `<option value="${v}"${(ib.btnIconPos || 'before') === v ? ' selected' : ''}>${l}</option>`).join('');
+		return `<div class="props-card" style="margin-bottom:0.5rem">
+			<div class="props-row" style="background:var(--color-tertiary,#f5f5f5);border-radius:0.2rem;padding:0.2rem 0.5rem">
+				<span class="props-label" style="font-weight:700">${idx + 1}. ${typeName}</span>
+			</div>
+			<div class="props-row">
+				<span class="props-label">크기</span>
+				<select class="props-select props-btn-inner-size" data-block-id="${bid}" data-ib-idx="${idx}">${sizeOpts}</select>
+			</div>
+			<div class="props-row${!isIconBtn ? ' props-row--last' : ''}">
+				<span class="props-label">이동 방식</span>
+				<select class="props-select props-btn-inner-opentype" data-block-id="${bid}" data-ib-idx="${idx}">${openOpts}</select>
+			</div>
+			${isIconBtn ? `<div class="props-row">
+				<span class="props-label">아이콘</span>
+				<select class="props-select props-btn-inner-icon" data-block-id="${bid}" data-ib-idx="${idx}"${isNewWindow ? ' disabled' : ''}>${iconOpts}</select>
+			</div>` : ''}
+			${ib.type === 'button-05' ? `<div class="props-row${ib.type === 'button-05' ? ' props-row--last' : ''}">
+				<span class="props-label">아이콘 위치</span>
+				<select class="props-select props-btn-inner-iconpos" data-block-id="${bid}" data-ib-idx="${idx}">${posOpts}</select>
+			</div>` : ''}
+			${ib.type === 'button-06' ? `<div class="props-row props-row--last" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+				<span class="props-label">버튼 목적 (숨김 텍스트)</span>
+				<div style="display:flex;gap:0.3rem">
+					<input type="text" class="props-input props-btn-inner-hid" data-block-id="${bid}" data-ib-idx="${idx}"
+						style="flex:1;text-align:left;height:1.5rem" value="${escapeAttr((ib.items[0] || {}).hid || '')}" placeholder="예: 전화 연결">
+					<button type="button" class="props-add-row-btn props-btn-inner-apply-hid" data-block-id="${bid}" data-ib-idx="${idx}" style="padding:0 0.5rem;margin:0;flex-shrink:0">적용</button>
+				</div>
+			</div>` : ''}
+		</div>`;
+	}).join('');
+}
+
 function renderPropsAccordionItems(block) {
 	const container = document.getElementById('propsAccordionItemsContainer');
 	if (!container) return;
@@ -1341,9 +1395,16 @@ function openBlockProps(blockId) {
 		}
 	}
 
+	const buttonInnerSection = document.getElementById('propsButtonInnerSection');
+	if (buttonInnerSection) {
+		const isButtonContainer = !isMixInnerBlock && block.type === 'button-00';
+		buttonInnerSection.style.display = isButtonContainer ? '' : 'none';
+		if (isButtonContainer) renderPropsButtonInnerItems(block);
+	}
+
 	const buttonSection = document.getElementById('propsButtonSection');
 	if (buttonSection) {
-		const isButton = !isMixInnerBlock && templateCategories[block.type] === 'button';
+		const isButton = !isMixInnerBlock && templateCategories[block.type] === 'button' && block.type !== 'button-00';
 		buttonSection.style.display = isButton ? '' : 'none';
 		if (isButton) {
 			const sizeSelect = document.getElementById('propBtnSize');
@@ -1542,6 +1603,51 @@ function initBlockPropsPanel() {
 		block.items[0].hid = hidInput.value.trim() || '버튼의 목적';
 		render();
 	});
+
+	// 버튼레이아웃(button-00) 내부 버튼 속성 이벤트 위임
+	const btnInnerContainer = document.getElementById('propsButtonInnerContainer');
+	if (btnInnerContainer) {
+		btnInnerContainer.addEventListener('change', event => {
+			const sel = event.target.closest('select');
+			if (!sel) return;
+			const blockId = sel.dataset.blockId;
+			const ibIdx = Number(sel.dataset.ibIdx);
+			const block = state.blocks.find(b => b.id === blockId);
+			if (!block || block.type !== 'button-00' || !block.innerBlocks?.[ibIdx]) return;
+			const ib = block.innerBlocks[ibIdx];
+			pushHistory();
+			if (sel.classList.contains('props-btn-inner-size')) {
+				ib.btnSize = sel.value;
+			} else if (sel.classList.contains('props-btn-inner-opentype')) {
+				ib.btnOpenType = sel.value;
+				// 새창 선택 시 아이콘 select 비활성화 처리
+				const iconSel = btnInnerContainer.querySelector(`.props-btn-inner-icon[data-ib-idx="${ibIdx}"]`);
+				if (iconSel) iconSel.disabled = sel.value === 'new-window';
+			} else if (sel.classList.contains('props-btn-inner-icon')) {
+				ib.btnIcon = sel.value;
+			} else if (sel.classList.contains('props-btn-inner-iconpos')) {
+				ib.btnIconPos = sel.value;
+			} else {
+				return;
+			}
+			render();
+		});
+		btnInnerContainer.addEventListener('click', event => {
+			const btn = event.target.closest('.props-btn-inner-apply-hid');
+			if (!btn) return;
+			const blockId = btn.dataset.blockId;
+			const ibIdx = Number(btn.dataset.ibIdx);
+			const block = state.blocks.find(b => b.id === blockId);
+			if (!block || block.type !== 'button-00' || !block.innerBlocks?.[ibIdx]) return;
+			const ib = block.innerBlocks[ibIdx];
+			const input = btnInnerContainer.querySelector(`.props-btn-inner-hid[data-ib-idx="${ibIdx}"]`);
+			if (!input) return;
+			pushHistory();
+			if (!ib.items[0]) ib.items[0] = {};
+			ib.items[0].hid = input.value.trim() || '버튼의 목적';
+			render();
+		});
+	}
 
 	// 행 관리 버튼 이벤트 위임: innerHTML이 교체되어도 컨테이너 리스너는 살아있음
 	const rowsContainer = document.getElementById('propsListRowsContainer');
@@ -1780,7 +1886,7 @@ function initBlockPropsPanel() {
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
-const MIX_ALLOWED = new Set(['box', 'list', 'title-horizontal', 'title-vertical', 'divider', 'text', 'title', 'bullet']);
+const MIX_ALLOWED = new Set(['box', 'list', 'title-horizontal', 'title-vertical', 'divider', 'text', 'title', 'bullet', 'button']);
 
 // mix-inner-slot을 가진 컨테이너 블록 여부 판별
 function isMixContainer(type) {
@@ -1912,13 +2018,24 @@ function addMixInnerBlock(blockId, innerType) {
 	pushHistory();
 	const innerData = innerTemplate.getDefaultData ? innerTemplate.getDefaultData() : {};
 	if (!Array.isArray(block.innerBlocks)) block.innerBlocks = [];
-	block.innerBlocks.push({
+	const newIb = {
 		type: innerType,
 		marginBottom: 10,
 		items: [{ ...cloneData(innerData), style: createStyleForType(innerType) }]
-	});
+	};
+	if (block.type === 'button-00' && templateCategories[innerType] === 'button') {
+		newIb.btnSize = '';
+		newIb.btnOpenType = 'default';
+		if (innerType === 'button-05' || innerType === 'button-06') newIb.btnIcon = 'ri-external-link-line';
+		if (innerType === 'button-05') newIb.btnIconPos = 'before';
+	}
+	block.innerBlocks.push(newIb);
 	render();
-	selectBlock(blockId);
+	if (block.type === 'button-00' && _propsBlockId === blockId) {
+		openBlockProps(blockId);
+	} else {
+		selectBlock(blockId);
+	}
 }
 
 // 혼합 블록 내부 순서 변경
@@ -1941,11 +2058,18 @@ function addMixInnerBlockFromExisting(mixBlockId, sourceBlockId) {
 	if (!MIX_ALLOWED.has(templateCategories[sourceBlock.type])) return;
 	pushHistory();
 	if (!Array.isArray(mixBlock.innerBlocks)) mixBlock.innerBlocks = [];
-	mixBlock.innerBlocks.push({
+	const movedIb = {
 		type: sourceBlock.type,
 		marginBottom: sourceBlock.marginBottom ?? 10,
 		items: cloneData(sourceBlock.items || [])
-	});
+	};
+	if (mixBlock.type === 'button-00' && templateCategories[sourceBlock.type] === 'button') {
+		movedIb.btnSize = sourceBlock.btnSize || '';
+		movedIb.btnOpenType = sourceBlock.btnOpenType || 'default';
+		movedIb.btnIcon = sourceBlock.btnIcon || 'ri-external-link-line';
+		movedIb.btnIconPos = sourceBlock.btnIconPos || 'before';
+	}
+	mixBlock.innerBlocks.push(movedIb);
 	state.blocks = state.blocks.filter(b => b.id !== sourceBlockId);
 	render();
 	selectBlock(mixBlockId);
@@ -2948,7 +3072,10 @@ function render() {
 			});
 			const icoSelect = document.getElementById('propBoxIco');
 			if (icoSelect && resolvedBlock.type === 'box-05') icoSelect.value = resolvedBlock.icoId || 'ico-box1';
-			if (templateCategories[resolvedBlock.type] === 'button') {
+			if (resolvedBlock.type === 'button-00') {
+				renderPropsButtonInnerItems(resolvedBlock);
+			}
+			if (templateCategories[resolvedBlock.type] === 'button' && resolvedBlock.type !== 'button-00') {
 				const btnSizeSel = document.getElementById('propBtnSize');
 				if (btnSizeSel) btnSizeSel.value = resolvedBlock.btnSize || '';
 				const btnOpenTypeSel = document.getElementById('propBtnOpenType');
@@ -3288,7 +3415,8 @@ function buildColumnBlock(template, block, editable) {
 					if (!innerTemplate) return '';
 					if (editable) {
 						const innerBlockId = `${block.id}::inner::${idx}`;
-						const fakeBlock = { id: innerBlockId, type: ib.type, columns: ib.items.length || 1, items: ib.items };
+						const fakeBlock = { id: innerBlockId, type: ib.type, columns: ib.items.length || 1, items: ib.items,
+							...(block.type === 'button-00' && templateCategories[ib.type] === 'button' ? { btnSize: ib.btnSize || '', btnOpenType: ib.btnOpenType || 'default', btnIcon: ib.btnIcon || 'ri-external-link-line', btnIconPos: ib.btnIconPos || 'before' } : {}) };
 						const isListInner = templateCategories[ib.type] === 'list';
 						let innerHtml;
 						if (isListInner && fakeBlock.items[0]?.rows) {
@@ -3313,7 +3441,8 @@ function buildColumnBlock(template, block, editable) {
 							${innerHtml}
 						</div>`;
 					} else {
-						const fakeBlock = { id: `${block.id}-inner-${idx}`, type: ib.type, columns: ib.items.length || 1, items: ib.items };
+						const fakeBlock = { id: `${block.id}-inner-${idx}`, type: ib.type, columns: ib.items.length || 1, items: ib.items,
+							...(block.type === 'button-00' && templateCategories[ib.type] === 'button' ? { btnSize: ib.btnSize || '', btnOpenType: ib.btnOpenType || 'default', btnIcon: ib.btnIcon || 'ri-external-link-line', btnIconPos: ib.btnIconPos || 'before' } : {}) };
 						const isListInner = templateCategories[ib.type] === 'list';
 						let innerContent;
 						if (isListInner && fakeBlock.items[0]?.rows) {
@@ -3401,8 +3530,8 @@ function buildColumnBlock(template, block, editable) {
 		if (svg) icoEl.innerHTML = svg;
 	});
 
-	// 버튼 블록: 사이즈·새창·아이콘 처리
-	if (block && templateCategories[block.type] === 'button') {
+	// 버튼 블록: 사이즈·새창·아이콘 처리 (button-00 컨테이너는 제외)
+	if (block && templateCategories[block.type] === 'button' && !isMixContainer(block.type)) {
 		const btnEl = outer.querySelector('button.btn-st');
 		if (btnEl) {
 			// 사이즈 클래스 적용
