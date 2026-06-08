@@ -6631,7 +6631,6 @@ async function init() {
 	const canvasWrapper = document.getElementById('canvasWrapper');
 	KlicBuilderShared.bindCanvasDropTargets({ canvasGrid, canvasWrapper, onDragOver: handleCanvasDragOver, onDrop: handleCanvasDrop });
 	_listEditButtons = createListEditButtons();
-	initFormatToolbar();
 	document.getElementById('iconDrawerClose').addEventListener('click', closeIconDrawer);
 	document.getElementById('iconDrawerBackdrop').addEventListener('click', closeIconDrawer);
 	canvasGrid.style.maxWidth = '1241px';
