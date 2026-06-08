@@ -5807,6 +5807,11 @@ function _elementMarkup(el) {
 	return elementToHtml(el);
 }
 
+function _unwrapIfBare(el) {
+	if (el.attributes.length === 0) return el.innerHTML.trim();
+	return elementToHtml(el);
+}
+
 function _stripCssVars(el) {
 	const strip = node => {
 		const style = node.getAttribute('style');
@@ -5875,15 +5880,20 @@ function _generateBlocksMarkup() {
 			applyItemStyles(outer, item, template);
 			_stripCssVars(outer);
 			_cleanBlockItem(outer);
-			return _wrapInSection(block, idx, total, _prettyHtml(_elementMarkup(outer)));
+			return _wrapInSection(block, idx, total, _prettyHtml(_unwrapIfBare(outer)));
 		} else if (templateCategories[block.type] === 'list' && block.items[0]?.rows) {
 			const item = block.items[0];
 			const outer = renderListDynamically(block, item, 0, template.element, false);
 			if (outer.hasAttribute('style')) outer.removeAttribute('style');
+			const listFirstChild = outer.firstElementChild;
+			if (listFirstChild && block.blockAlign) {
+				listFirstChild.classList.remove('al', 'ac', 'ar');
+				listFirstChild.classList.add(block.blockAlign);
+			}
 			applyItemStyles(outer, item, template);
 			_stripCssVars(outer);
 			_cleanBlockItem(outer);
-			return _wrapInSection(block, idx, total, _prettyHtml(_elementMarkup(outer)));
+			return _wrapInSection(block, idx, total, _prettyHtml(_unwrapIfBare(outer)));
 		} else {
 			const outer = buildColumnBlock(template, block, false);
 			if (outer.hasAttribute('style')) outer.removeAttribute('style');
@@ -5891,7 +5901,7 @@ function _generateBlocksMarkup() {
 			applyItemStyles(outer, block.items[0] || {}, template);
 			_stripCssVars(outer);
 			_cleanBlockItem(outer);
-			return _wrapInSection(block, idx, total, _prettyHtml(_elementMarkup(outer)));
+			return _wrapInSection(block, idx, total, _prettyHtml(_unwrapIfBare(outer)));
 		}
 	}).join('\n\n');
 
