@@ -68,6 +68,10 @@
 					<i class="ri-eye-line" aria-hidden="true"></i>
 					미리보기
 				</button>
+				<button type="button" class="ghost-button" id="helpModeToggle" aria-pressed="false">
+					도움말
+					<i class="ri-question-line" aria-hidden="true"></i>
+				</button>
 			</div>
 			<div class="topbar-preview-actions">
 				<button type="button" class="primary-button" id="savePreviewImage">
@@ -86,7 +90,7 @@
 		</header>
 
 		<main class="builder" id="builderMain">
-			<aside class="sidebar" aria-label="디자인 블록 도구">
+			<aside class="sidebar" aria-label="디자인 블록 도구" data-help-tip="블록을 선택한 뒤 오른쪽 캔버스 영역으로 드래그하여 배치하세요">
 				<aside class="deco-studio-drawer" id="decoStudioDrawer" aria-label="꾸밈 스튜디오" hidden>
 					<div class="deco-studio-head">
 						<strong>꾸밈 스튜디오</strong>
@@ -141,7 +145,7 @@
 				</section>
 			</aside>
 
-			<section class="workspace" aria-label="서브콘텐츠 작업 영역">
+			<section class="workspace" aria-label="서브콘텐츠 작업 영역" data-help-tip="좌측 디자인 블록을 이 캔버스 영역으로 드래그하면 콘텐츠가 배치됩니다">
 				<div class="canvas-quick-actions" aria-label="캔버스 보조 도구">
 					<button type="button" class="canvas-tool-fab deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기" hidden>
 						<i class="ri-sparkling-2-line" aria-hidden="true"></i>
@@ -165,13 +169,18 @@
 	<aside class="block-props-panel" id="blockPropsPanel" aria-label="블록 속성">
 		<div class="block-props-head">
 			<strong class="block-props-name" id="blockPropsTitle">블록</strong>
-			<button type="button" class="block-props-close-btn" id="blockPropsClose" aria-label="닫기">
-				<i class="ri-close-line" aria-hidden="true"></i>
-			</button>
+			<div class="block-props-head-right">
+				<button type="button" class="block-props-help-btn" id="blockPropsHelp" aria-pressed="false" aria-label="속성 도움말">
+					<i class="ri-question-line" aria-hidden="true"></i>
+				</button>
+				<button type="button" class="block-props-close-btn" id="blockPropsClose" aria-label="닫기">
+					<i class="ri-close-line" aria-hidden="true"></i>
+				</button>
+			</div>
 		</div>
 		<div class="block-props-body">
 			<div class="props-section">
-				<p class="props-section-label">블록 설정</p>
+				<p class="props-section-label" data-help="블록의 가로 너비 비율, 다음 블록과의 하단 간격, 가로 정렬 방향을 조정합니다. 너비를 50% 이하로 좁히면 여러 블록을 한 줄에 나란히 배치할 수 있습니다.">블록 설정</p>
 				<div class="props-card">
 					<div class="props-row">
 						<span class="props-label">너비</span>
@@ -206,14 +215,14 @@
 				</div>
 			</div>
 			<div class="props-section" id="propsListSection" style="display:none">
-				<p class="props-section-label">행 관리</p>
+				<p class="props-section-label" data-help="리스트 항목의 텍스트를 직접 수정하거나, 행을 추가·삭제할 수 있습니다.">행 관리</p>
 				<div class="props-card props-list-card" id="propsListRowsContainer"></div>
 				<button type="button" class="props-add-row-btn" id="propsAddRowTop">
 					<i class="ri-add-line" aria-hidden="true"></i> 행 추가
 				</button>
 			</div>
 			<div class="props-section" id="propsLinkSection" style="display:none">
-				<p class="props-section-label">링크 설정</p>
+				<p class="props-section-label" data-help="클릭 시 이동할 URL을 입력하고, 링크를 현재 탭에서 열지 새 탭에서 열지 선택합니다. 내부 페이지 링크도 입력 가능합니다.">링크 설정</p>
 				<div class="props-card">
 					<div class="props-row">
 						<span class="props-label">URL</span>
@@ -231,7 +240,7 @@
 				</div>
 			</div>
 			<div class="props-section" id="propsDownloadSection" style="display:none">
-				<p class="props-section-label">다운로드 설정</p>
+				<p class="props-section-label" data-help="버튼 클릭 시 다운로드할 파일을 지정합니다. 파일을 선택한 뒤 적용 버튼을 눌러 연결하세요.">다운로드 설정</p>
 				<div class="props-card">
 					<div class="props-row props-row--last">
 						<span class="props-label">파일 선택</span>
@@ -244,7 +253,7 @@
 				<p class="props-notice" id="propsDownloadNotice" style="display:none">추후 작업예정입니다.</p>
 			</div>
 			<div class="props-section" id="propsBoxImgSection" style="display:none">
-				<p class="props-section-label">이미지 설정</p>
+				<p class="props-section-label" data-help="블록에 표시할 이미지를 업로드하고, 시각 장애인을 위한 이미지 설명(alt 텍스트)을 반드시 입력해 주세요. 접근성 기준에 필수입니다.">이미지 설정</p>
 				<div class="props-card">
 					<div class="props-row">
 						<span class="props-label">이미지 업로드</span>
@@ -260,7 +269,7 @@
 				</button>
 			</div>
 			<div class="props-section" id="propsBoxIcoSection" style="display:none">
-				<p class="props-section-label">아이콘 설정</p>
+				<p class="props-section-label" data-help="박스 블록 상단에 표시할 아이콘을 12가지 중에서 선택합니다. 콘텐츠 주제에 맞는 아이콘을 골라주세요.">아이콘 설정</p>
 				<div class="props-card">
 					<div class="props-row props-row--last">
 						<span class="props-label">아이콘 선택</span>
@@ -283,7 +292,7 @@
 			</div>
 			<!-- 탭 속성 패널 -->
 			<div class="props-section" id="propsTabSection" style="display:none">
-				<p class="props-section-label">탭 설정</p>
+				<p class="props-section-label" data-help="한 줄에 표시할 탭 버튼 개수와 각 탭의 제목을 관리합니다. 탭이 많을수록 개수를 늘려주세요.">탭 설정</p>
 				<div class="props-card">
 					<div class="props-row props-row--last">
 						<span class="props-label">탭 열 수</span>
@@ -305,7 +314,7 @@
 			<div class="props-section" id="propsProcessSection" style="display:none">
 				<!-- 가로형 전용: 열 수 선택 -->
 				<div id="propsProcessHorizCard">
-					<p class="props-section-label">열 수</p>
+					<p class="props-section-label" data-help="가로형 절차 블록에서 한 줄에 표시할 단계 수를 설정합니다.">열 수</p>
 					<div class="props-card">
 						<div class="props-row props-row--last">
 							<span class="props-label">열 수 선택</span>
@@ -320,7 +329,7 @@
 					</div>
 				</div>
 				<!-- 공통: 단계별 설명(sub) 관리 -->
-				<p class="props-section-label">단계 설명 관리</p>
+				<p class="props-section-label" data-help="각 절차 단계 아래에 표시되는 부연 설명 텍스트를 편집합니다.">단계 설명 관리</p>
 				<div class="props-card props-process-steps-card" id="propsProcessStepsContainer"></div>
 				<!-- 세로형 전용: 단계 추가 버튼 -->
 				<button type="button" class="props-add-row-btn" id="propsAddProcessStep" style="display:none">
@@ -329,7 +338,7 @@
 			</div>
 			<!-- 아코디언 속성 패널 -->
 			<div class="props-section" id="propsAccordionSection" style="display:none">
-				<p class="props-section-label">아코디언 설정</p>
+				<p class="props-section-label" data-help="아코디언 제목의 텍스트 크기와 메뉴 항목 제목을 관리합니다. 항목 클릭 시 내용이 펼쳐지는 구조입니다.">아코디언 설정</p>
 				<div class="props-card">
 					<div class="props-row props-row--last">
 						<span class="props-label">크기</span>
@@ -355,7 +364,7 @@
 
 			<!-- 버튼 속성 패널 -->
 			<div class="props-section" id="propsButtonSection" style="display:none">
-				<p class="props-section-label">버튼 설정</p>
+				<p class="props-section-label" data-help="버튼 높이(크기)와 링크 이동 방식을 설정합니다. 주요 CTA 버튼은 Extra Large 크기를 권장합니다.">버튼 설정</p>
 				<div class="props-card">
 					<div class="props-row">
 						<span class="props-label">크기</span>
@@ -418,7 +427,7 @@
 
 			<!-- 테이블 속성 패널 -->
 				<div class="props-section" id="propsTableSection" style="display:none">
-					<p class="props-section-label">열 설정</p>
+					<p class="props-section-label" data-help="열 수를 입력하고 너비를 자동(균등) 또는 수동으로 나눌 수 있습니다. 가로 스크롤은 좁은 화면에서 테이블이 옆으로 밀리지 않도록 합니다.">열 설정</p>
 					<div class="props-card">
 						<div class="props-row">
 							<span class="props-label">열 수</span>
