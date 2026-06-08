@@ -337,6 +337,69 @@
 				</button>
 			</div>
 
+			<!-- 버튼 속성 패널 -->
+			<div class="props-section" id="propsButtonSection" style="display:none">
+				<p class="props-section-label">버튼 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">크기</span>
+						<select class="props-select" id="propBtnSize">
+							<option value="">기본 (Medium)</option>
+							<option value="size-sm">Small</option>
+							<option value="size-lg">Large</option>
+							<option value="size-exlg">Extra Large</option>
+						</select>
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이동 방식</span>
+						<select class="props-select" id="propBtnOpenType">
+							<option value="default">기본</option>
+							<option value="new-window">새창</option>
+						</select>
+					</div>
+				</div>
+				<!-- 아이콘 버튼(button-05, button-06) 전용 -->
+				<div id="propsButtonIconCard" style="display:none">
+					<p class="props-section-label" style="margin-top:0.75rem">아이콘 설정</p>
+					<div class="props-card">
+						<div class="props-row" id="propBtnIconRow">
+							<span class="props-label">아이콘 선택</span>
+							<select class="props-select" id="propBtnIcon">
+								<option value="ri-external-link-line">새창 아이콘</option>
+								<option value="ri-phone-fill">전화 아이콘</option>
+							</select>
+						</div>
+						<!-- 아이콘 위치: button-05 전용 -->
+						<div class="props-row props-row--last" id="propBtnIconPosRow">
+							<span class="props-label">아이콘 위치</span>
+							<select class="props-select" id="propBtnIconPos">
+								<option value="before">텍스트 앞</option>
+								<option value="after">텍스트 뒤</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				<!-- 아이콘 전용 버튼(button-06) 숨김 텍스트 입력 -->
+				<div id="propsButtonHidCard" style="display:none">
+					<p class="props-section-label" style="margin-top:0.75rem">숨김 텍스트 (접근성)</p>
+					<div class="props-card">
+						<div class="props-row props-row--last" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+							<span class="props-label">버튼 목적 입력</span>
+							<input type="text" class="props-input" id="propBtnHidText"
+								style="width:100%;text-align:left;height:1.5rem"
+								placeholder="예: 전화 연결, 새창으로 이동">
+						</div>
+					</div>
+					<button type="button" class="props-add-row-btn" id="propsApplyBtnHid">
+						<i class="ri-check-line" aria-hidden="true"></i> 적용
+					</button>
+				</div>
+				<!-- 주요버튼(button-01) 안내 문구 -->
+				<div id="propsButtonPriNotice" style="display:none">
+					<p class="props-notice" style="margin-top:0.5rem;display:block">주요버튼은 한 화면에 1개만 배치할 수 있습니다.</p>
+				</div>
+			</div>
+
 			<div class="props-section" id="propsDiscloserSection" style="display:none">
 				<p class="props-section-label">Discloser 설정</p>
 				<div class="props-card">

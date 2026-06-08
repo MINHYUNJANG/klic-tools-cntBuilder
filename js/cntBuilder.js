@@ -797,6 +797,18 @@ function createBlock(type) {
 		block.discloserTitle = template.discloserDefaults.title || 'Discloser';
 		block.discloserContent = template.discloserDefaults.content || '';
 	}
+	// button 블록: 기본값 초기화
+	if (templateCategories[type] === 'button') {
+		block.blockWidth = 'auto';
+		block.btnSize = '';
+		block.btnOpenType = 'default';
+		if (type === 'button-05' || type === 'button-06') {
+			block.btnIcon = 'ri-external-link-line';
+		}
+		if (type === 'button-05') {
+			block.btnIconPos = 'before';
+		}
+	}
 	// process 블록: 4개 기본 단계 초기화
 	if (templateCategories[type] === 'process') {
 		block.columns = 4;
@@ -842,6 +854,16 @@ function validateBlockPlacement(type, targetBlockId = null, position = 'after') 
 			return {
 				valid: false,
 				message: rules.errorMessage || `이 블록은 ${required.join(', ')} 블록 하위에만 추가할 수 있습니다.`
+			};
+		}
+	}
+
+	if (rules.maxCount != null) {
+		const existingCount = state.blocks.filter(b => b.type === type).length;
+		if (existingCount >= rules.maxCount) {
+			return {
+				valid: false,
+				message: rules.maxCountMsg || `이 블록은 최대 ${rules.maxCount}개까지만 배치할 수 있습니다.`
 			};
 		}
 	}
@@ -1319,6 +1341,41 @@ function openBlockProps(blockId) {
 		}
 	}
 
+	const buttonSection = document.getElementById('propsButtonSection');
+	if (buttonSection) {
+		const isButton = !isMixInnerBlock && templateCategories[block.type] === 'button';
+		buttonSection.style.display = isButton ? '' : 'none';
+		if (isButton) {
+			const sizeSelect = document.getElementById('propBtnSize');
+			if (sizeSelect) sizeSelect.value = block.btnSize || '';
+			const openTypeSelect = document.getElementById('propBtnOpenType');
+			if (openTypeSelect) openTypeSelect.value = block.btnOpenType || 'default';
+
+			const isIconBtn = block.type === 'button-05' || block.type === 'button-06';
+			const iconCard = document.getElementById('propsButtonIconCard');
+			if (iconCard) iconCard.style.display = isIconBtn ? '' : 'none';
+
+			if (isIconBtn) {
+				const iconSelect = document.getElementById('propBtnIcon');
+				if (iconSelect) iconSelect.value = block.btnIcon || 'ri-external-link-line';
+				const iconPosRow = document.getElementById('propBtnIconPosRow');
+				if (iconPosRow) iconPosRow.style.display = block.type === 'button-05' ? '' : 'none';
+				const iconPosSelect = document.getElementById('propBtnIconPos');
+				if (iconPosSelect && block.type === 'button-05') iconPosSelect.value = block.btnIconPos || 'before';
+			}
+
+			const hidCard = document.getElementById('propsButtonHidCard');
+			if (hidCard) hidCard.style.display = block.type === 'button-06' ? '' : 'none';
+			if (block.type === 'button-06') {
+				const hidInput = document.getElementById('propBtnHidText');
+				if (hidInput) hidInput.value = (block.items[0] || {}).hid || '';
+			}
+
+			const priNotice = document.getElementById('propsButtonPriNotice');
+			if (priNotice) priNotice.style.display = block.type === 'button-01' ? '' : 'none';
+		}
+	}
+
 	panel.classList.add('is-open');
 }
 
@@ -1427,6 +1484,62 @@ function initBlockPropsPanel() {
 		if (!block || block.type !== 'box-05') return;
 		pushHistory();
 		block.icoId = this.value;
+		render();
+	});
+
+	// 버튼 블록: 크기 선택
+	document.getElementById('propBtnSize')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'button') return;
+		pushHistory();
+		block.btnSize = this.value;
+		render();
+	});
+
+	// 버튼 블록: 이동 방식 선택
+	document.getElementById('propBtnOpenType')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || templateCategories[block.type] !== 'button') return;
+		pushHistory();
+		block.btnOpenType = this.value;
+		// 새창 선택 시 아이콘 버튼 아이콘 선택 비활성화 (새창 아이콘 고정)
+		const iconSelect = document.getElementById('propBtnIcon');
+		if (iconSelect) iconSelect.disabled = this.value === 'new-window';
+		render();
+	});
+
+	// 버튼 블록: 아이콘 선택
+	document.getElementById('propBtnIcon')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || (block.type !== 'button-05' && block.type !== 'button-06')) return;
+		pushHistory();
+		block.btnIcon = this.value;
+		render();
+	});
+
+	// 버튼 블록: 아이콘 위치 선택 (button-05 전용)
+	document.getElementById('propBtnIconPos')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'button-05') return;
+		pushHistory();
+		block.btnIconPos = this.value;
+		render();
+	});
+
+	// 버튼 블록: 아이콘 전용(button-06) 숨김 텍스트 적용
+	document.getElementById('propsApplyBtnHid')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'button-06') return;
+		const hidInput = document.getElementById('propBtnHidText');
+		if (!hidInput) return;
+		pushHistory();
+		if (!block.items[0]) block.items[0] = {};
+		block.items[0].hid = hidInput.value.trim() || '버튼의 목적';
 		render();
 	});
 
@@ -2835,6 +2948,19 @@ function render() {
 			});
 			const icoSelect = document.getElementById('propBoxIco');
 			if (icoSelect && resolvedBlock.type === 'box-05') icoSelect.value = resolvedBlock.icoId || 'ico-box1';
+			if (templateCategories[resolvedBlock.type] === 'button') {
+				const btnSizeSel = document.getElementById('propBtnSize');
+				if (btnSizeSel) btnSizeSel.value = resolvedBlock.btnSize || '';
+				const btnOpenTypeSel = document.getElementById('propBtnOpenType');
+				if (btnOpenTypeSel) btnOpenTypeSel.value = resolvedBlock.btnOpenType || 'default';
+				const btnIconSel = document.getElementById('propBtnIcon');
+				if (btnIconSel) {
+					btnIconSel.value = resolvedBlock.btnIcon || 'ri-external-link-line';
+					btnIconSel.disabled = resolvedBlock.btnOpenType === 'new-window';
+				}
+				const btnIconPosSel = document.getElementById('propBtnIconPos');
+				if (btnIconPosSel && resolvedBlock.type === 'button-05') btnIconPosSel.value = resolvedBlock.btnIconPos || 'before';
+			}
 			const processColsSelect = document.getElementById('propProcessCols');
 			if (processColsSelect && resolvedBlock.type === 'process-01') {
 				processColsSelect.value = String(resolvedBlock.items.length);
@@ -3274,6 +3400,62 @@ function buildColumnBlock(template, block, editable) {
 		const svg = ICO_SVG_MAP[icoId];
 		if (svg) icoEl.innerHTML = svg;
 	});
+
+	// 버튼 블록: 사이즈·새창·아이콘 처리
+	if (block && templateCategories[block.type] === 'button') {
+		const btnEl = outer.querySelector('button.btn-st');
+		if (btnEl) {
+			// 사이즈 클래스 적용
+			btnEl.classList.remove('size-sm', 'size-lg', 'size-exlg');
+			if (block.btnSize) btnEl.classList.add(block.btnSize);
+
+			const isNewWindow = block.btnOpenType === 'new-window';
+			if (isNewWindow) {
+				btnEl.setAttribute('target', '_blank');
+				btnEl.setAttribute('title', '새창 이동');
+			} else {
+				btnEl.removeAttribute('target');
+				btnEl.removeAttribute('title');
+			}
+
+			// 텍스트 버튼(button-01~04): 새창 타입이면 새창 아이콘 자동 추가·제거
+			if (['button-01','button-02','button-03','button-04'].includes(block.type)) {
+				const existingIco = btnEl.querySelector('i[aria-hidden]');
+				if (existingIco) existingIco.remove();
+				if (isNewWindow) {
+					btnEl.classList.add('icon');
+					const icoEl = document.createElement('i');
+					icoEl.className = 'ri-external-link-line';
+					icoEl.setAttribute('aria-hidden', 'true');
+					btnEl.appendChild(icoEl);
+				} else {
+					btnEl.classList.remove('icon');
+				}
+			}
+
+			// 아이콘 버튼(button-05, button-06): 아이콘 클래스·위치 처리
+			if (block.type === 'button-05' || block.type === 'button-06') {
+				const icoEl = btnEl.querySelector('i');
+				if (icoEl) {
+					// 새창 타입이면 새창 아이콘 고정, 아니면 선택 아이콘 적용
+					icoEl.className = isNewWindow ? 'ri-external-link-line' : (block.btnIcon || 'ri-external-link-line');
+					icoEl.setAttribute('aria-hidden', 'true');
+
+					// 아이콘 위치 처리 (button-05 전용)
+					if (block.type === 'button-05') {
+						const spanEl = btnEl.querySelector('span[data-edit-field]') || btnEl.querySelector('span:not(.hid)');
+						if (spanEl) {
+							if (block.btnIconPos === 'after') {
+								if (btnEl.lastElementChild !== icoEl) btnEl.appendChild(icoEl);
+							} else {
+								if (btnEl.firstElementChild !== icoEl) btnEl.insertBefore(icoEl, btnEl.firstChild);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// process 블록: <ul> 에 li 항목 주입 + fin 클래스 + col 클래스(가로형)
 	if (block && templateCategories[block.type] === 'process') {
