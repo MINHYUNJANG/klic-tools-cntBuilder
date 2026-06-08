@@ -1655,11 +1655,10 @@ function renderPropsTabItems(block) {
 	const items = block.tabItems || [];
 	const TAB_TYPE_LABELS = { normal: '일반', new_window: '새창', disabled: '비활성' };
 	container.innerHTML = items.map((item, idx) => {
-		const label = item.text ? item.text.slice(0, 16) : `탭 ${idx + 1}`;
-		const typeLabel = TAB_TYPE_LABELS[item.type] || '일반';
 		const canRemove = items.length > 1;
+		const textVal = escapeAttr(item.text || '');
 		return `<div class="props-list-row" data-tab-props-idx="${idx}">
-			<span class="props-list-row-text">${label}</span>
+			<input type="text" class="props-input props-tab-text-input" style="flex:1;min-width:0;height:1.5rem" data-block-id="${block.id}" data-tab-text-idx="${idx}" placeholder="탭 명칭 입력" value="${textVal}">
 			<select class="props-select props-tab-type-select" data-tab-type-idx="${idx}" data-block-id="${block.id}" style="width:5rem;flex-shrink:0">
 				<option value="normal"${item.type === 'normal' ? ' selected' : ''}>일반</option>
 				<option value="new_window"${item.type === 'new_window' ? ' selected' : ''}>새창</option>
@@ -2233,8 +2232,18 @@ function initBlockPropsPanel() {
 		renderPropsTabItems(block);
 	});
 
-	// 탭: 타입 변경 / 항목 삭제 (위임)
+	// 탭: 명칭 변경 / 타입 변경 / 항목 삭제 (위임)
 	document.getElementById('propsTabItemsContainer')?.addEventListener('change', function (e) {
+		const textInput = e.target.closest('.props-tab-text-input');
+		if (textInput) {
+			const idx = Number(textInput.dataset.tabTextIdx);
+			const block = state.blocks.find(b => b.id === textInput.dataset.blockId);
+			if (!block || !block.tabItems || !block.tabItems[idx]) return;
+			pushHistory();
+			block.tabItems[idx].text = textInput.value;
+			render();
+			return;
+		}
 		const sel = e.target.closest('.props-tab-type-select');
 		if (!sel) return;
 		const idx = Number(sel.dataset.tabTypeIdx);
