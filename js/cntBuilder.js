@@ -6796,7 +6796,7 @@ const TOUR_STEPS = [
 	{
 		target: '.builder-block',
 		title: '③ 블록 편집 컨트롤',
-		desc: '블록에 마우스를 올리면 오른쪽 상단에 3가지 버튼이 나타납니다.<ul class="tour-ctrl-list"><li><i class="ri-settings-3-line"></i> <b>속성</b> — 텍스트·색상·링크 등을 편집합니다</li><li><i class="ri-file-copy-line"></i> <b>복사</b> — 블록을 복제해 바로 아래에 추가합니다</li><li><i class="ri-close-line"></i> <b>삭제</b> — 블록을 캔버스에서 제거합니다</li></ul>',
+		desc: '블록에 마우스를 올리면 오른쪽 상단에 3가지 버튼이 나타납니다.<ul class="tour-ctrl-list"><li><i class="ri-settings-3-line"></i> <b>속성</b> — 해당 블록의 속성을 편집합니다.</li><li><i class="ri-file-copy-line"></i> <b>복사</b> — 블록을 복제해 바로 아래에 추가합니다</li><li><i class="ri-close-line"></i> <b>삭제</b> — 블록을 캔버스에서 제거합니다</li></ul>',
 		position: 'bottom'
 	},
 	{
