@@ -6631,6 +6631,7 @@ async function init() {
 	const canvasWrapper = document.getElementById('canvasWrapper');
 	KlicBuilderShared.bindCanvasDropTargets({ canvasGrid, canvasWrapper, onDragOver: handleCanvasDragOver, onDrop: handleCanvasDrop });
 	_listEditButtons = createListEditButtons();
+	initThemeSwitcher();
 	document.getElementById('iconDrawerClose').addEventListener('click', closeIconDrawer);
 	document.getElementById('iconDrawerBackdrop').addEventListener('click', closeIconDrawer);
 	canvasGrid.style.maxWidth = '1241px';
@@ -6643,6 +6644,27 @@ async function init() {
 	});
 
 	render();
+}
+
+// ── 테마 선택기 ───────────────────────────────────────────
+function initThemeSwitcher() {
+	const saved = localStorage.getItem('klicBuilderTheme') || 'purple';
+	applyTheme(saved);
+
+	document.getElementById('themeSwitcher')?.addEventListener('click', e => {
+		const btn = e.target.closest('.theme-swatch');
+		if (!btn) return;
+		applyTheme(btn.dataset.theme);
+		localStorage.setItem('klicBuilderTheme', btn.dataset.theme);
+	});
+}
+
+function applyTheme(theme) {
+	document.body.dataset.theme = theme;
+	document.querySelectorAll('.theme-swatch').forEach(btn => {
+		btn.classList.toggle('is-active', btn.dataset.theme === theme);
+		btn.setAttribute('aria-pressed', btn.dataset.theme === theme ? 'true' : 'false');
+	});
 }
 
 window.addEventListener('DOMContentLoaded', init);
