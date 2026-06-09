@@ -63,7 +63,8 @@ const state = {
 	overlays: [],
 	customDecorations: [],
 	undoStack: [],
-	previewDevice: 'pc'
+	previewDevice: 'pc',
+	newsletterStyle: { fontFamily: '', fontSize: '', lineHeight: '', fontWeight: '', blockGap: '' }
 };
 
 // 꾸밈 스튜디오 필터 목록
@@ -774,12 +775,13 @@ function registerDesignTemplateSections(template) {
 function createBlock(type) {
 	const template = componentTemplates[type];
 	const defaultData = template.getDefaultData ? template.getDefaultData() : {};
+	const isDesignTemplateSection = (templateCategories[type] || '') === 'design-template-section';
 	const block = {
 		id: `block-${state.nextBlockId++}`,
 		type,
 		columns: 1,
 		columnMode: '1',
-		marginBottom: 10,
+		marginBottom: isDesignTemplateSection ? 0 : 10,
 		blockWidth: template.element.firstElementChild?.tagName.toLowerCase() === 'a' ? 'auto' : '',
 		blockAlign: '',
 		items: [{ ...cloneData(defaultData), style: createStyleForType(type) }]
@@ -1944,6 +1946,44 @@ function openBlockProps(blockId) {
 		}
 	}
 
+	// 가정통신문 헤더 속성 패널
+	const nlHeaderSection = document.getElementById('propsNewsletterHeaderSection');
+	if (nlHeaderSection) {
+		const isNlHeader = block.type === 'newsletter-01__section_1';
+		nlHeaderSection.style.display = isNlHeader ? '' : 'none';
+		if (isNlHeader) {
+			const item = block.items[0] || {};
+			const schoolNameInput = document.getElementById('propNlSchoolName');
+			const deptInput = document.getElementById('propNlDept');
+			const phoneInput = document.getElementById('propNlPhone');
+			const logoFileInput = document.getElementById('propNlLogoFile');
+			if (schoolNameInput) schoolNameInput.value = item.schoolName || '';
+			if (deptInput) deptInput.value = item.dept || '';
+			if (phoneInput) phoneInput.value = item.phone || '';
+			if (logoFileInput) logoFileInput.value = '';
+		}
+	}
+
+	// 가정통신문 폰트 속성 패널 (section 블록)
+	const nlFontSection = document.getElementById('propsNewsletterFontSection');
+	if (nlFontSection) {
+		const isNlBlock = block.type.startsWith('newsletter-01__section_');
+		nlFontSection.style.display = isNlBlock ? '' : 'none';
+		if (isNlBlock) {
+			const ns = state.newsletterStyle;
+			const fontFamilySel = document.getElementById('propNlFontFamily');
+			const fontSizeInput = document.getElementById('propNlFontSize');
+			const lineHeightSel = document.getElementById('propNlLineHeight');
+			const fontWeightSel = document.getElementById('propNlFontWeight');
+			if (fontFamilySel) fontFamilySel.value = ns.fontFamily || '';
+			if (fontSizeInput) fontSizeInput.value = ns.fontSize || '';
+			if (lineHeightSel) lineHeightSel.value = ns.lineHeight || '';
+			if (fontWeightSel) fontWeightSel.value = ns.fontWeight || '';
+			const blockGapInput = document.getElementById('propNlBlockGap');
+			if (blockGapInput) blockGapInput.value = ns.blockGap || '';
+		}
+	}
+
 	panel.classList.add('is-open');
 }
 
@@ -1951,6 +1991,228 @@ function closeBlockProps() {
 	_propsBlockId = null;
 	const panel = document.getElementById('blockPropsPanel');
 	panel.classList.remove('is-open');
+}
+
+function initNlInlineToolbar() {
+	const toolbar = document.getElementById('nlInlineToolbar');
+	if (!toolbar) return;
+
+	let _savedRange = null;
+
+	function saveRange() {
+		const sel = window.getSelection();
+		if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+			_savedRange = sel.getRangeAt(0).cloneRange();
+			return true;
+		}
+		return false;
+	}
+
+	function restoreRange() {
+		if (!_savedRange) return false;
+		const node = _savedRange.commonAncestorContainer;
+		const editEl = node.nodeType === 3 ? node.parentElement : node;
+		const ceEl = editEl?.closest('[contenteditable]');
+		if (ceEl) ceEl.focus();
+		const sel = window.getSelection();
+		sel.removeAllRanges();
+		sel.addRange(_savedRange);
+		return true;
+	}
+
+	// 툴바 클릭 시 contenteditable 포커스/선택 영역이 해제되지 않도록 방지
+	// 숫자 input은 예외 처리 (포커스 받아야 입력 가능)
+	toolbar.addEventListener('mousedown', e => {
+		if (e.target.type === 'number') return;
+		e.preventDefault();
+	});
+
+	function showToolbar(range) {
+		const rect = range.getBoundingClientRect();
+		if (!rect.width && !rect.height) return;
+		let left = rect.left;
+		let top = rect.top - 48;
+		if (top < 8) top = rect.bottom + 8;
+		if (left + 230 > window.innerWidth) left = window.innerWidth - 238;
+		if (left < 8) left = 8;
+		toolbar.style.left = left + 'px';
+		toolbar.style.top = top + 'px';
+		toolbar.style.display = 'flex';
+	}
+
+	// ── 크기 입력 모드 ──
+	let _sizeMode = false;
+	let _sizeBuf = '';
+	let _sizeFirstKey = false; // 첫 키 입력 시 기존 값 덮어쓰기 플래그
+	const sizeWrap = document.getElementById('nlItbSizeWrap');
+	const sizeDisplay = document.getElementById('nlItbSizeDisplay');
+
+	function startSizeMode() {
+		_sizeMode = true;
+		_sizeBuf = (sizeDisplay?.textContent || '').replace(/[^0-9]/g, '');
+		_sizeFirstKey = true; // 첫 키 입력은 기존 값을 대체
+		sizeWrap?.classList.add('size-active');
+	}
+
+	function endSizeMode() {
+		_sizeMode = false;
+		sizeWrap?.classList.remove('size-active');
+	}
+
+	function applySizeAndEnd() {
+		if (!_sizeBuf || !restoreRange()) { endSizeMode(); return; }
+		applySpanStyle({ fontSize: _sizeBuf + 'px' });
+		if (sizeDisplay) sizeDisplay.textContent = _sizeBuf;
+		endSizeMode();
+	}
+
+	function hideToolbar() {
+		toolbar.style.display = 'none';
+		_savedRange = null;
+		endSizeMode();
+	}
+
+	function isInNlContent(node) {
+		const el = node?.nodeType === 3 ? node.parentElement : node;
+		return !!el?.closest('.nl-content-area');
+	}
+
+	document.addEventListener('mouseup', e => {
+		if (toolbar.contains(e.target)) return;
+		const sel = window.getSelection();
+		if (!sel || sel.isCollapsed || !sel.rangeCount) {
+			if (!toolbar.contains(e.target)) hideToolbar();
+			return;
+		}
+		const range = sel.getRangeAt(0);
+		if (isInNlContent(range.commonAncestorContainer)) {
+			saveRange();
+			showToolbar(range);
+		} else {
+			hideToolbar();
+		}
+	});
+
+	document.addEventListener('mousedown', e => {
+		if (!toolbar.contains(e.target) && !e.target.closest('.nl-content-area')) {
+			hideToolbar();
+		}
+	});
+
+	// 선택 텍스트를 <span style="...">으로 감싸는 공통 헬퍼
+	// 기존 styled span 스타일을 병합하고 중첩 span을 제거하여 단일 span 유지
+	function applySpanStyle(styleObj) {
+		const sel = window.getSelection();
+		if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+		const range = sel.getRangeAt(0);
+		try {
+			const frag = range.extractContents();
+			const tmp = document.createElement('div');
+			tmp.appendChild(frag);
+
+			// 선택 전체가 하나의 styled span인 경우 기존 스타일 수집 후 병합
+			const mergedStyles = {};
+			const kids = Array.from(tmp.childNodes).filter(n => n.nodeType !== 3 || n.textContent.trim());
+			if (kids.length === 1 && kids[0].nodeName === 'SPAN' && kids[0].style?.cssText) {
+				for (const prop of kids[0].style) {
+					mergedStyles[prop] = kids[0].style[prop];
+				}
+			}
+			Object.assign(mergedStyles, styleObj); // 새 스타일이 우선
+
+			// 기존 styled span 모두 제거 (텍스트와 비 span 요소는 유지)
+			tmp.querySelectorAll('span[style]').forEach(s => s.replaceWith(...s.childNodes));
+
+			// 병합된 스타일의 단일 span으로 감싸기
+			const span = document.createElement('span');
+			Object.assign(span.style, mergedStyles);
+			while (tmp.firstChild) span.appendChild(tmp.firstChild);
+
+			range.insertNode(span);
+			const nr = document.createRange();
+			nr.selectNode(span); // span 요소 자체를 선택 → 다음 적용 시 span 전체를 추출해 스타일 병합
+			sel.removeAllRanges();
+			sel.addRange(nr);
+			saveRange();
+			showToolbar(nr);
+		} catch (err) {
+			console.warn('nl inline style apply failed', err);
+		}
+	}
+
+	// 글자 색상: change 이벤트로 색상 피커 확정 시 1회 적용 (input 이벤트는 span 다중 생성 문제)
+	document.getElementById('nlItbColor')?.addEventListener('change', e => {
+		if (!restoreRange()) return;
+		applySpanStyle({ color: e.target.value });
+	});
+
+	// 크기 입력 모드: 클릭 시 활성화, 키보드 숫자 입력 캡처
+	sizeWrap?.addEventListener('click', () => startSizeMode());
+
+	document.addEventListener('keydown', e => {
+		if (!_sizeMode) return;
+		if (e.key >= '0' && e.key <= '9') {
+			e.preventDefault();
+			if (_sizeFirstKey) { _sizeBuf = e.key; _sizeFirstKey = false; } // 첫 키: 덮어쓰기
+			else _sizeBuf += e.key;
+			if (Number(_sizeBuf) > 200) _sizeBuf = '200';
+			if (sizeDisplay) sizeDisplay.textContent = _sizeBuf;
+		} else if (e.key === 'Backspace') {
+			e.preventDefault();
+			_sizeFirstKey = false;
+			_sizeBuf = _sizeBuf.slice(0, -1);
+			if (sizeDisplay) sizeDisplay.textContent = _sizeBuf || '—';
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			applySizeAndEnd();
+		} else if (e.key === 'Escape') {
+			endSizeMode();
+		}
+	});
+
+	// 크기 적용 버튼
+	document.getElementById('nlItbApplySize')?.addEventListener('click', applySizeAndEnd);
+
+	// 굵기 토글
+	document.getElementById('nlItbBold')?.addEventListener('click', () => {
+		if (!restoreRange()) return;
+		const sel = window.getSelection();
+		if (!sel || !sel.rangeCount) return;
+		const range = sel.getRangeAt(0);
+		// selectNode(span) 이후에는 startContainer가 부모 → 직접 span 요소를 가져옴
+		const parent = range.startContainer;
+		const selectedNode = parent.nodeType === 1
+			? parent.childNodes[range.startOffset]
+			: parent;
+		const checkEl = (selectedNode?.nodeType === 1 ? selectedNode : selectedNode?.parentElement) || parent;
+		const isBold = Number(window.getComputedStyle(checkEl).fontWeight) >= 600;
+		applySpanStyle({ fontWeight: isBold ? '400' : '700' });
+	});
+
+	// 서식 초기화: 선택 영역의 span 인라인 스타일 제거
+	document.getElementById('nlItbReset')?.addEventListener('click', () => {
+		if (!restoreRange()) return;
+		const sel = window.getSelection();
+		if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+		const range = sel.getRangeAt(0);
+		try {
+			const frag = range.extractContents();
+			const tmp = document.createElement('div');
+			tmp.appendChild(frag);
+			// span의 인라인 스타일 제거, 내용만 남김
+			tmp.querySelectorAll('span[style], font').forEach(node => {
+				node.replaceWith(...node.childNodes);
+			});
+			range.insertNode(tmp);
+			// tmp 언래핑
+			const parent = tmp.parentNode;
+			while (tmp.firstChild) parent.insertBefore(tmp.firstChild, tmp);
+			parent.removeChild(tmp);
+			saveRange();
+		} catch (err) {
+			console.warn('nl format reset failed', err);
+		}
+	});
 }
 
 function initBlockPropsPanel() {
@@ -2586,6 +2848,71 @@ function initBlockPropsPanel() {
 		if (e.target.closest && e.target.closest('table [data-edit-field]')) return;
 		closeTableCellSpanPopover();
 	});
+
+	// 가정통신문 헤더: 로고 파일 선택 시 즉시 적용
+	document.getElementById('propNlLogoFile')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'newsletter-01__section_1') return;
+		const file = this.files?.[0];
+		if (!file || !file.type.startsWith('image/')) return;
+		const reader = new FileReader();
+		reader.onload = () => {
+			pushHistory();
+			block.nlLogoSrc = String(reader.result || '');
+			const schoolNameInput = document.getElementById('propNlSchoolName');
+			block.nlLogoAlt = (schoolNameInput?.value.trim()) || '학교 로고';
+			render();
+		};
+		reader.readAsDataURL(file);
+	});
+
+	// 가정통신문 헤더: 적용 버튼 (학교명, 부서명, 연락처)
+	document.getElementById('propsApplyNlHeader')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'newsletter-01__section_1') return;
+		const schoolName = document.getElementById('propNlSchoolName')?.value.trim() || '';
+		const dept = document.getElementById('propNlDept')?.value.trim() || '';
+		const phone = document.getElementById('propNlPhone')?.value.trim() || '';
+		pushHistory();
+		if (!block.items[0]) block.items[0] = {};
+		if (schoolName) block.items[0].schoolName = schoolName;
+		block.items[0].dept = dept;
+		block.items[0].phone = phone;
+		if (block.nlLogoSrc) block.nlLogoAlt = schoolName || '학교 로고';
+		render();
+	});
+
+
+	// 가정통신문 폰트: 적용 버튼
+	document.getElementById('propsApplyNlFont')?.addEventListener('click', () => {
+		const fontFamily = document.getElementById('propNlFontFamily')?.value || '';
+		const fontSize = document.getElementById('propNlFontSize')?.value || '';
+		const lineHeight = document.getElementById('propNlLineHeight')?.value || '';
+		const fontWeight = document.getElementById('propNlFontWeight')?.value || '';
+		const blockGap = document.getElementById('propNlBlockGap')?.value || '';
+		state.newsletterStyle = { fontFamily, fontSize, lineHeight, fontWeight, blockGap };
+		applyNewsletterStyles();
+	});
+}
+
+function applyNewsletterStyles() {
+	const ns = state.newsletterStyle;
+	// 폰트 패밀리: 전체 템플릿에 적용
+	document.querySelectorAll('.nl-template').forEach(el => {
+		if (ns.fontFamily) el.style.setProperty('--nl-font-family', ns.fontFamily);
+		else el.style.removeProperty('--nl-font-family');
+	});
+	// 폰트 크기/굵기/줄간격/블록간격: 본문 영역에만 적용
+	document.querySelectorAll('.nl-content-area').forEach(el => {
+		if (ns.fontSize) el.style.setProperty('--nl-font-size', `${ns.fontSize}px`);
+		else el.style.removeProperty('--nl-font-size');
+		if (ns.lineHeight) el.style.setProperty('--nl-line-height', ns.lineHeight);
+		else el.style.removeProperty('--nl-line-height');
+		if (ns.fontWeight) el.style.setProperty('--nl-font-weight', ns.fontWeight);
+		else el.style.removeProperty('--nl-font-weight');
+	});
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
@@ -3068,6 +3395,250 @@ function renderComponentList() {
 }
 
 
+function renderCustomPanel() {
+	const customList = document.getElementById('customTemplateList');
+	if (!customList) return;
+
+	const templates = Object.values(componentTemplates).filter(t => {
+		return (templateCategories[t.id] || '') === 'design-template';
+	});
+
+	if (!templates.length) {
+		customList.classList.add('is-empty-state');
+		customList.innerHTML = '<p class="template-empty">커스텀 템플릿이 없습니다.</p>';
+		bindComponentEvents(customList);
+		return;
+	}
+
+	customList.classList.remove('is-empty-state');
+	customList.innerHTML = templates.map(t => `
+		<div class="component-item" draggable="true" data-type="${t.id}">
+			<div class="component-thumb component-thumb--loading" aria-hidden="true"></div>
+			<span class="component-name">${escapeHtml(t.name)}</span>
+			<button type="button" class="component-add-btn" aria-label="${escapeHtml(t.name)} 추가">
+				<i class="ri-add-line" aria-hidden="true"></i>
+			</button>
+		</div>`).join('');
+	bindComponentEvents(customList);
+
+	for (const t of templates) {
+		const item = customList.querySelector(`[data-type="${t.id}"]`);
+		if (!item) continue;
+		const thumb = item.querySelector('.component-thumb');
+		thumb.classList.remove('component-thumb--loading');
+		const img = document.createElement('img');
+		img.src = getThumbUrl(t.id);
+		img.alt = t.id;
+		img.className = 'component-thumb-img';
+		img.onerror = () => { thumb.innerHTML = '<div class="mix-thumb-placeholder">미리보기 없음</div>'; };
+		thumb.appendChild(img);
+	}
+
+	const hasNewsletter = state.blocks.some(b => b.type.startsWith('newsletter-01__section_'));
+	const exportSection = document.getElementById('customExportSection');
+	if (exportSection) exportSection.style.display = hasNewsletter ? '' : 'none';
+}
+
+
+function generateNewsletterHtml() {
+	const newsletterBlocks = state.blocks.filter(b => b.type.startsWith('newsletter-01__section_'));
+	if (!newsletterBlocks.length) return null;
+
+	const cssLinks = [
+		'<link rel="stylesheet" href="/css/basic.css">',
+		'<link rel="stylesheet" href="/css/common.css">',
+		'<link rel="stylesheet" href="/templates/design_template/newsletter-01/style.css">'
+	].join('\n');
+
+	const sections = newsletterBlocks.map(block => {
+		const template = componentTemplates[block.type];
+		if (!template) return '';
+		const lines = template.markup(block.items[0] || {});
+		let sectionHtml = Array.isArray(lines) ? lines.join('\n') : lines;
+		// 헤더 섹션: 로고 이미지 및 연락처 처리
+		if (block.type === 'newsletter-01__section_1') {
+			const tmp = document.createElement('div');
+			tmp.innerHTML = sectionHtml;
+			const logoImg = tmp.querySelector('img[data-nl-logo]');
+			if (logoImg) {
+				if (block.nlLogoSrc) {
+					logoImg.setAttribute('src', block.nlLogoSrc);
+					logoImg.setAttribute('alt', block.nlLogoAlt || '');
+					logoImg.style.display = '';
+				} else {
+					logoImg.remove();
+				}
+				if (tmp.querySelector('img[data-nl-logo]')) tmp.querySelector('img[data-nl-logo]').removeAttribute('data-nl-logo');
+			}
+			const deptVal = (block.items[0] || {}).dept || '';
+			const phoneVal = (block.items[0] || {}).phone || '';
+			const contactRow = tmp.querySelector('.nl-header-info');
+			if (contactRow && !deptVal && !phoneVal) contactRow.remove();
+			sectionHtml = tmp.innerHTML;
+		}
+		// 본문 섹션: 구조적 body 블록 내보내기
+		if (block.type === 'newsletter-01__section_3') {
+			const tmp = document.createElement('div');
+			tmp.innerHTML = sectionHtml;
+			const contentArea = tmp.querySelector('.nl-content-area');
+			if (contentArea) {
+				const bodyBlocks = state.blocks.filter(b => b._isNlBodyBlock && b._parentSectionId === block.id);
+				if (bodyBlocks.length > 0) {
+					contentArea.innerHTML = '';
+					bodyBlocks.forEach(bb => {
+						const bbTemplate = componentTemplates[bb.type];
+						if (!bbTemplate) return;
+						let bbHtml;
+						if (bbTemplate.isRootWrap) {
+							const bbEl = renderAddColumnWrapElement(bbTemplate, bb.items[0] || {}, bb, 0, false);
+							stripEditorAttributes(bbEl);
+							bbHtml = elementToHtml(bbEl);
+						} else {
+							const bbEl = buildColumnBlock(bbTemplate, bb, false);
+							bbHtml = bbEl instanceof Element ? elementToHtml(bbEl) : String(bbEl);
+						}
+						const wrapper = document.createElement('div');
+						wrapper.className = 'nl-block-insert';
+						const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
+							? bb.marginBottom
+							: (parseInt(state.newsletterStyle.blockGap) || 12);
+						wrapper.style.marginBottom = gapPx + 'px';
+						if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
+						if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
+						else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
+						wrapper.innerHTML = bbHtml;
+						contentArea.appendChild(wrapper);
+					});
+				}
+			}
+			sectionHtml = tmp.innerHTML;
+		}
+		return sectionHtml;
+	}).join('\n');
+
+	const ns = state.newsletterStyle;
+	const nlFontFamily = ns.fontFamily || "'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif";
+	const nlFontSize = ns.fontSize ? `${ns.fontSize}px` : '15px';
+	const nlLineHeight = ns.lineHeight || '1.9';
+	const nlFontWeight = ns.fontWeight || 'normal';
+	const nlBlockGap = ns.blockGap ? `${ns.blockGap}px` : '12px';
+
+	return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가정통신문</title>
+${cssLinks}
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+  @page { size: A4 portrait; margin: 20mm 18mm; }
+  body {
+    font-family: ${nlFontFamily};
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+  .nl-template {
+    --nl-font-family: ${nlFontFamily};
+  }
+  .nl-content-area {
+    --nl-font-size: ${nlFontSize};
+    --nl-line-height: ${nlLineHeight};
+    --nl-font-weight: ${nlFontWeight};
+  }
+  .nl-print-wrapper {
+    max-width: 170mm;
+    margin: 0 auto;
+    padding: 0;
+  }
+  .print-toolbar {
+    position: fixed;
+    top: 12px; right: 16px;
+    display: flex; gap: 8px;
+    z-index: 100;
+  }
+  .print-btn {
+    padding: 8px 18px;
+    background: #1a56db;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .print-btn:hover { background: #1341b0; }
+  @media print {
+    .print-toolbar { display: none !important; }
+    .nl-print-wrapper { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="print-toolbar">
+  <button class="print-btn" onclick="window.print()">인쇄 / PDF 저장</button>
+</div>
+<div class="nl-print-wrapper">
+${sections}
+</div>
+</body>
+</html>`;
+}
+
+
+function exportNewsletterDoc() {
+	const html = generateNewsletterHtml();
+	if (!html) {
+		alert('캔버스에 가정통신문 블록이 없습니다.\n먼저 [디자인 커스텀] 탭에서 가정통신문 템플릿을 추가하세요.');
+		return;
+	}
+	const docHtml = html
+		.replace('<html lang="ko">', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="ko">')
+		.replace('</head>', '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]--></head>');
+	const blob = new Blob([docHtml], { type: 'application/msword' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = '가정통신문.doc';
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}
+
+
+function exportNewsletterPrint() {
+	const html = generateNewsletterHtml();
+	if (!html) {
+		alert('캔버스에 가정통신문 블록이 없습니다.\n먼저 [디자인 커스텀] 탭에서 가정통신문 템플릿을 추가하세요.');
+		return;
+	}
+	const win = window.open('', '_blank');
+	if (!win) { alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.'); return; }
+	win.document.write(html);
+	win.document.close();
+}
+
+
+function exportNewsletterDownload() {
+	const html = generateNewsletterHtml();
+	if (!html) {
+		alert('캔버스에 가정통신문 블록이 없습니다.\n먼저 [디자인 커스텀] 탭에서 가정통신문 템플릿을 추가하세요.');
+		return;
+	}
+	const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = '가정통신문.html';
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}
+
+
 function renderDecorationPanel() {
 	// ── 필터 탭 ──
 	const filtersEl = document.getElementById('decoFilters');
@@ -3450,6 +4021,7 @@ function switchSidebarTab(tab) {
 	const panelCustom = document.getElementById('panelCustom');
 	if (panelBlocks) panelBlocks.classList.toggle('is-hidden', tab !== 'blocks');
 	if (panelCustom) panelCustom.classList.toggle('is-hidden', tab !== 'custom');
+	if (tab === 'custom') renderCustomPanel();
 	renderRecommendationPanel();
 }
 
@@ -3691,11 +4263,12 @@ function applyAllTemplateStyles() {
 }
 
 function syncCanvasPresence() {
-	const hasBlocks = state.blocks.length > 0;
+	const canvasBlockCount = state.blocks.filter(b => !b._isNlBodyBlock).length;
+	const hasBlocks = canvasBlockCount > 0;
 	const hasOverlays = state.overlays.length > 0;
 	layoutStatus.textContent = hasOverlays
-		? `${state.blocks.length}개 블록 · ${state.overlays.length}개 꾸밈요소`
-		: `${state.blocks.length}개 블록`;
+		? `${canvasBlockCount}개 블록 · ${state.overlays.length}개 꾸밈요소`
+		: `${canvasBlockCount}개 블록`;
 	const builderMain = document.getElementById('builderMain');
 	builderMain.classList.toggle('has-blocks', hasBlocks);
 	builderMain.classList.toggle('has-overlays', hasOverlays);
@@ -3734,16 +4307,24 @@ function render() {
 	});
 	const { hasBlocks, hasOverlays } = syncCanvasPresence();
 	canvasGrid.className = hasBlocks ? 'canvas-grid' : 'canvas-grid is-empty';
+	const canvasVisibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock);
 	canvasGrid.innerHTML = hasBlocks
-		? state.blocks.map((block, idx) => renderBuilderBlock(block, idx, state.blocks.length)).join('')
+		? canvasVisibleBlocks.map((block, idx) => renderBuilderBlock(block, idx, canvasVisibleBlocks.length)).join('')
 		: hasOverlays
 			? ''
 		: '<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>';
 	bindRenderedEvents();
 	applyAllTemplateStyles();
+	applyNewsletterStyles();
 	syncCanvasGuideSize();
 	updateMarkup();
 	renderRecommendationPanel();
+	if (state.sidebarTab === 'custom') {
+		const exportSection = document.getElementById('customExportSection');
+		if (exportSection) {
+			exportSection.style.display = state.blocks.some(b => b.type.startsWith('newsletter-01__section_')) ? '' : 'none';
+		}
+	}
 	if (state.selectedItem) {
 		const { blockId, columnIndex } = state.selectedItem;
 		const block = state.blocks.find(b => b.id === blockId);
@@ -4038,6 +4619,53 @@ function renderRepeatedColumns(block) {
 			el.classList.add('block-item');
 			el.dataset.blockId = block.id;
 			el.dataset.columnIndex = String(index);
+			// 가정통신문 헤더: 로고 이미지 및 연락처 visibility 처리
+			if (block.type === 'newsletter-01__section_1') {
+				const logoImg = el.querySelector('img[data-nl-logo]');
+				const logoFrame = el.querySelector('.nl-logo-frame');
+				if (logoImg) {
+					if (block.nlLogoSrc) {
+						logoImg.setAttribute('src', block.nlLogoSrc);
+						logoImg.setAttribute('alt', block.nlLogoAlt || '');
+						logoImg.style.display = '';
+					} else {
+						logoImg.style.display = 'none';
+					}
+				}
+				if (logoFrame) logoFrame.dataset.hasLogo = block.nlLogoSrc ? '1' : '0';
+				const deptVal = (item || {}).dept || '';
+				const phoneVal = (item || {}).phone || '';
+				const contactRow = el.querySelector('.nl-header-info');
+				if (contactRow) contactRow.style.display = (!deptVal && !phoneVal) ? 'none' : '';
+			}
+			// 가정통신문 본문: 구조적 body 블록 렌더링
+			if (block.type === 'newsletter-01__section_3') {
+				const contentArea = el.querySelector('.nl-content-area');
+				if (contentArea) {
+					const bodyBlocks = state.blocks.filter(b => b._isNlBodyBlock && b._parentSectionId === block.id);
+					if (bodyBlocks.length > 0) {
+						contentArea.innerHTML = '';
+						bodyBlocks.forEach(bb => {
+							const bbTemplate = componentTemplates[bb.type];
+							if (!bbTemplate) return;
+							const wrapper = document.createElement('div');
+							wrapper.className = 'nl-block-insert nl-body-block-wrap';
+							wrapper.dataset.nlBodyBlockId = bb.id;
+							const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
+								? bb.marginBottom
+								: (parseInt(state.newsletterStyle.blockGap) || 12);
+							wrapper.style.marginBottom = gapPx + 'px';
+							if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
+							if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
+							else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
+							const bbInnerHtml = renderRepeatedColumns(bb);
+							const ctrlHtml = `<div class="nl-body-block-controls" aria-hidden="true"><button type="button" class="nl-body-ctrl-btn" data-nl-body-props-id="${bb.id}" title="속성"><i class="ri-settings-3-line" aria-hidden="true"></i></button><button type="button" class="nl-body-ctrl-btn nl-body-ctrl-del" data-nl-body-delete-id="${bb.id}" title="삭제"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div>`;
+							wrapper.innerHTML = ctrlHtml + bbInnerHtml;
+							contentArea.appendChild(wrapper);
+						});
+					}
+				}
+			}
 			return elementToHtml(el);
 		}).join('');
 	}
@@ -4118,6 +4746,34 @@ function buildColumnBlock(template, block, editable) {
 			if (block.imgSrc) boxImg.setAttribute('src', block.imgSrc);
 			if (block.imgAlt !== undefined) boxImg.setAttribute('alt', block.imgAlt);
 			if (!editable) boxImg.removeAttribute('data-box-img');
+		}
+	}
+
+	// 가정통신문 헤더(newsletter-01__section_1): 로고 이미지 동기화
+	if (block && block.type === 'newsletter-01__section_1') {
+		const logoImg = outer.querySelector('img[data-nl-logo]');
+		const logoFrame = outer.querySelector('.nl-logo-frame');
+		if (logoImg) {
+			if (block.nlLogoSrc) {
+				logoImg.setAttribute('src', block.nlLogoSrc);
+				logoImg.setAttribute('alt', block.nlLogoAlt || '');
+				logoImg.style.display = '';
+			} else {
+				logoImg.style.display = 'none';
+			}
+			if (!editable) logoImg.removeAttribute('data-nl-logo');
+		}
+		if (logoFrame) logoFrame.dataset.hasLogo = block.nlLogoSrc ? '1' : '0';
+		// 부서명/연락처 빈 값이면 contact-row 숨김
+		const deptEl = outer.querySelector('.nl-dept');
+		const phoneEl = outer.querySelector('.nl-phone');
+		if (deptEl && phoneEl) {
+			const deptVal = (block.items[0] || {}).dept || '';
+			const phoneVal = (block.items[0] || {}).phone || '';
+			const contactRow = outer.querySelector('.nl-header-info');
+			if (contactRow) {
+				contactRow.style.display = (!deptVal && !phoneVal) ? 'none' : '';
+			}
 		}
 	}
 
@@ -5183,6 +5839,68 @@ function bindRenderedEvents() {
 			}
 		});
 	});
+
+	// 가정통신문 본문 영역: 디자인 블록 드래그 드롭
+	document.querySelectorAll('.nl-content-area[data-edit-field="body"]').forEach(bodyArea => {
+		bodyArea.addEventListener('dragover', event => {
+			if (document.body.classList.contains('preview-mode')) return;
+			const payload = state.dragPayload;
+			if (!payload.startsWith('new-block:')) return;
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = 'copy';
+			bodyArea.classList.add('nl-body-drop-over');
+		});
+		bodyArea.addEventListener('dragleave', event => {
+			if (!bodyArea.contains(event.relatedTarget)) {
+				bodyArea.classList.remove('nl-body-drop-over');
+			}
+		});
+		bodyArea.addEventListener('drop', event => {
+			if (document.body.classList.contains('preview-mode')) return;
+			const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
+			if (!payload.startsWith('new-block:')) return;
+			event.preventDefault();
+			event.stopPropagation();
+			bodyArea.classList.remove('nl-body-drop-over');
+			clearDropIndicators();
+			state.dragPayload = '';
+			const type = payload.replace('new-block:', '');
+			if (!componentTemplates[type]) return;
+			const builderBlock = bodyArea.closest('.builder-block');
+			if (!builderBlock) return;
+			const sectionBlockId = builderBlock.dataset.blockId;
+			if (!state.blocks.find(b => b.id === sectionBlockId)) return;
+			pushHistory();
+			const bodyBlock = createBlock(type);
+			bodyBlock._isNlBodyBlock = true;
+			bodyBlock._parentSectionId = sectionBlockId;
+			bodyBlock.marginBottom = 0;
+			state.blocks.push(bodyBlock);
+			render();
+			openBlockProps(bodyBlock.id);
+		});
+	});
+
+	// 가정통신문 본문 body 블록: 속성 버튼 클릭
+	document.querySelectorAll('[data-nl-body-props-id]').forEach(btn => {
+		btn.addEventListener('click', e => {
+			e.stopPropagation();
+			openBlockProps(btn.dataset.nlBodyPropsId);
+		});
+	});
+
+	// 가정통신문 본문 body 블록: 삭제 버튼 클릭
+	document.querySelectorAll('[data-nl-body-delete-id]').forEach(btn => {
+		btn.addEventListener('click', e => {
+			e.stopPropagation();
+			const id = btn.dataset.nlBodyDeleteId;
+			pushHistory();
+			state.blocks = state.blocks.filter(b => b.id !== id);
+			if (_propsBlockId === id) closeBlockProps();
+			render();
+		});
+	});
 }
 
 function setBlockDropIndicator(block, event) {
@@ -5965,13 +6683,47 @@ function _cleanBlockItem(el) {
 
 function _generateBlocksMarkup() {
 	const _sink = [];
-	const total = state.blocks.length;
-	const html = state.blocks.map((block, idx) => {
+	const visibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock);
+	const total = visibleBlocks.length;
+	const html = visibleBlocks.map((block, idx) => {
 		const template = componentTemplates[block.type];
 
 		if (template.isRootWrap) {
 			const innerHtml = block.items.map((item, colIdx) => {
 				const el = renderAddColumnWrapElement(template, item, block, colIdx, false);
+				// 뉴스레터 section_3 본문 body 블록 주입
+				if (block.type === 'newsletter-01__section_3') {
+					const contentArea = el.querySelector('.nl-content-area');
+					if (contentArea) {
+						const bodyBlocks = state.blocks.filter(b => b._isNlBodyBlock && b._parentSectionId === block.id);
+						if (bodyBlocks.length > 0) {
+							contentArea.innerHTML = '';
+							bodyBlocks.forEach(bb => {
+								const bbTemplate = componentTemplates[bb.type];
+								if (!bbTemplate) return;
+								const wrapper = document.createElement('div');
+								wrapper.className = 'nl-block-insert nl-body-block-wrap';
+								const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
+									? bb.marginBottom : (parseInt(state.newsletterStyle.blockGap) || 12);
+								wrapper.style.marginBottom = gapPx + 'px';
+								if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
+								if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
+								else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
+								if (bb.nlBodyZoom && bb.nlBodyZoom !== 100) wrapper.style.zoom = (bb.nlBodyZoom / 100).toString();
+								if (bb.nlBodyFontWeight) wrapper.style.setProperty('--nl-body-font-weight', bb.nlBodyFontWeight);
+								let bbEl;
+								if (bbTemplate.isRootWrap) {
+									bbEl = renderAddColumnWrapElement(bbTemplate, bb.items[0] || {}, bb, 0, false);
+									stripEditorAttributes(bbEl);
+								} else {
+									bbEl = buildColumnBlock(bbTemplate, bb, false);
+								}
+								wrapper.innerHTML = bbEl instanceof Element ? elementToHtml(bbEl) : String(bbEl);
+								contentArea.appendChild(wrapper);
+							});
+						}
+					}
+				}
 				_extractInnerVarStyles(el, '.x', _sink);
 				applyItemStyles(el, item, template);
 				_stripCssVars(el);
@@ -6666,6 +7418,7 @@ async function init() {
 	try {
 		await Promise.all([loadTemplates(), loadIconCategories()]);
 		renderComponentList();
+		if (state.sidebarTab === 'custom') renderCustomPanel();
 		if (state.blocks.length === 0) {
 			const block = createBlock('title-01');
 			state.blocks.push(block);
@@ -6678,9 +7431,13 @@ async function init() {
 
 	document.getElementById('clearCanvas').addEventListener('click', clearCanvas);
 	document.getElementById('copyMarkup').addEventListener('click', copyMarkup);
+	document.getElementById('newsletterPrintBtn')?.addEventListener('click', exportNewsletterPrint);
+	document.getElementById('newsletterDownloadBtn')?.addEventListener('click', exportNewsletterDownload);
+	document.getElementById('newsletterDocDownloadBtn')?.addEventListener('click', exportNewsletterDoc);
 	bindFilterEvents();
 	KlicBuilderShared.bindSidebarTabs(tab => {
 		state.sidebarTab = tab;
+		if (tab === 'custom') renderCustomPanel();
 		renderRecommendationPanel();
 	});
 	previewToggle.addEventListener('click', togglePreview);
@@ -6691,6 +7448,7 @@ async function init() {
 	document.getElementById('decoStudioOpen')?.addEventListener('click', openDecoStudio);
 	document.getElementById('decoStudioClose')?.addEventListener('click', closeDecoStudio);
 	initBlockPropsPanel();
+	initNlInlineToolbar();
 	initSmartInlinePopup();
 	document.getElementById('recommendPanelOpen')?.addEventListener('click', openRecommendationPanel);
 	updateRecommendFab();
