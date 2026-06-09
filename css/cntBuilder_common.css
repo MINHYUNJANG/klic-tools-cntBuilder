@@ -1599,6 +1599,39 @@ body.preview-mode .overlay-layer {
 	border-left-color: #ffffff;
 }
 
+/* ── 디자인 커스텀 패널 내보내기 영역 ── */
+.custom-export-section {
+	border-top: 1px solid var(--border-color, #e0e0e0);
+	margin-top: 8px;
+	padding: 14px 12px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.custom-export-title {
+	font-size: 0.78em;
+	font-weight: 700;
+	color: var(--text-sub, #888);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	margin: 0 0 2px;
+}
+
+.custom-export-btn {
+	width: 100%;
+	justify-content: center;
+	gap: 6px;
+	font-size: 0.85em;
+}
+
+.custom-export-notice {
+	font-size: 0.75em;
+	color: var(--text-sub, #999);
+	line-height: 1.5;
+	margin: 0;
+}
+
 
 
 

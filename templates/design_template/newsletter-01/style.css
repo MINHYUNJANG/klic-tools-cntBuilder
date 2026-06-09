@@ -1,0 +1,308 @@
+/* ── 가정통신문 디자인 템플릿 ──────────────────── */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
+.nl-template * {
+  box-sizing: border-box;
+}
+
+.nl-template {
+  font-family: var(--nl-font-family, 'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif);
+}
+
+/* ── Section 1: 헤더 ── */
+.nl-header-section {
+  border: 1.5px solid #c8cdd6;
+  border-top: 4px solid #1e3a5f;
+  border-bottom: none;
+  background: #fff;
+}
+
+/* 로고 | 타이틀 | 학교명 행 */
+.nl-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  min-height: 76px;
+  padding: 12px 24px;
+  gap: 16px;
+  background: #fff;
+}
+
+/* 좌측: 로고 프레임 */
+.nl-header-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 10rem;
+}
+
+.nl-logo-frame {
+  width: 8.5rem;
+  height: 3rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+/* 로고 미등록 시 시각적 플레이스홀더 */
+.nl-logo-frame[data-has-logo="0"] {
+  border: 1.5px dashed #c0c8d4;
+  background: #f4f6fa;
+}
+
+.nl-logo-frame[data-has-logo="0"]::after {
+  content: '로고 이미지';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.68em;
+  color: #a8b3c4;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.nl-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 중앙: 타이틀 */
+.nl-header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.nl-main-title {
+  font-size: 1.7em;
+  font-weight: 800;
+  color: #1a1a1a;
+  letter-spacing: 0.22em;
+  text-align: center;
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* 우측: 학교명 */
+.nl-header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 10rem;
+}
+
+.nl-school-name {
+  font-size: 0.95em;
+  font-weight: 700;
+  color: #2c3e50;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+/* 부서명/연락처 행: 진하게 */
+.nl-header-info {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 0 24px;
+  background: #1e3a5f;
+  border-top: none;
+}
+
+.nl-dept,
+.nl-phone {
+  font-size: 0.75em;
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 400;
+  padding: 6px 12px;
+  letter-spacing: 0.02em;
+}
+
+.nl-dept {
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ── Section 2: 제목 ── */
+.nl-subject-section {
+  border-left: 1.5px solid #c8cdd6;
+  border-right: 1.5px solid #c8cdd6;
+  border-top: 1px solid #c8cdd6;
+  background: #fff;
+}
+
+.nl-subject-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 46px;
+}
+
+.nl-subject-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  padding: 10px 16px;
+  background: #1e3a5f;
+  border-right: none;
+  font-size: 0.88em;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+
+.nl-subject-text {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  font-size: 1em;
+  font-weight: 600;
+  color: #1a1a1a;
+  flex: 1;
+  border-left: 2px solid #e2e6ed;
+}
+
+/* ── Section 3: 본문 ── */
+.nl-content-section {
+  border-left: 1.5px solid #c8cdd6;
+  border-right: 1.5px solid #c8cdd6;
+  border-top: 1px solid #c8cdd6;
+  background: #fff;
+}
+
+.nl-content-area {
+  min-height: 820px;
+  padding: 24px;
+  font-size: var(--nl-font-size, 0.95em);
+  line-height: var(--nl-line-height, 1.9);
+  font-weight: var(--nl-font-weight, normal);
+  color: #222;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+}
+
+.nl-content-area.nl-body-drop-over {
+  outline: 2px dashed #1e3a5f;
+  outline-offset: -4px;
+  background: #f0f4fa;
+}
+
+/* 본문에 삽입된 블록 */
+.nl-block-insert {
+  position: relative;
+  margin: 0;
+  width: 100%;
+}
+
+
+/* body 블록 컨트롤 오버레이 */
+.nl-body-block-controls {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 5px;
+  padding: 2px 3px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+.nl-body-block-wrap:hover .nl-body-block-controls {
+  display: flex;
+}
+
+.nl-body-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-height: 26px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nl-body-ctrl-btn:hover {
+  background: #f0f0f0;
+  color: #111;
+}
+
+.nl-body-ctrl-del:hover {
+  background: #fde8e8;
+  color: #c53030;
+  border-color: #fca5a5;
+}
+
+/* ── Section 4: 푸터 ── */
+.nl-footer-section {
+  border: 1.5px solid #c8cdd6;
+  border-top: 1px solid #c8cdd6;
+  background: #fafbfc;
+}
+
+.nl-footer-inner {
+  padding: 22px 24px 26px;
+  text-align: center;
+}
+
+.nl-footer-date {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #2c3e50;
+  letter-spacing: 0.1em;
+  margin: 0 0 8px;
+}
+
+.nl-footer-sign {
+  font-size: 1.05em;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+/* ── 반응형 ── */
+@media (max-width: 600px) {
+  .nl-header-inner {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nl-header-left,
+  .nl-header-right {
+    justify-content: center;
+    width: auto;
+  }
+
+  .nl-main-title {
+    font-size: 1.35em;
+  }
+
+  .nl-header-info {
+    justify-content: center;
+  }
+}
