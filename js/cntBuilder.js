@@ -5726,7 +5726,7 @@ function buildColumnBlock(template, block, editable, innerTableEditable = false)
 		}
 	}
 
-	if (!editable) stripEditorAttributes(outer);
+	if (!editable && !innerTableEditable) stripEditorAttributes(outer);
 	return editable ? elementToHtml(outer) : outer;
 }
 
