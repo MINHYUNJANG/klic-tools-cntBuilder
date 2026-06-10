@@ -1,4 +1,4 @@
-/* ── 가정통신문 디자인 템플릿 ──────────────────── */
+/* ── 가정통신문 디자인 템플릿 (소프트 파스텔) ──────────────────── */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 
 .nl-template * {
@@ -7,14 +7,25 @@
 
 .nl-template {
   font-family: var(--nl-font-family, 'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif);
+  /* border-radius: 8px; */
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(74, 141, 170, 0.10), 0 1px 4px rgba(74, 141, 170, 0.06);
 }
 
 /* ── Section 1: 헤더 ── */
 .nl-header-section {
-  border: 1.5px solid #c8cdd6;
-  border-top: 4px solid #1e3a5f;
+  border: 1.5px solid #c5dce8;
+  border-top: none;
   border-bottom: none;
-  background: #fff;
+  background: linear-gradient(160deg, #eef6fb 0%, #f7fbfe 100%);
+  position: relative;
+}
+
+.nl-header-section::before {
+  content: '';
+  display: block;
+  height: 4px;
+  background: linear-gradient(90deg, #4a8daa 0%, #7ab8cf 50%, #4a8daa 100%);
 }
 
 /* 로고 | 타이틀 | 학교명 행 */
@@ -24,9 +35,9 @@
   align-items: center;
   justify-content: center;
   min-height: 76px;
-  padding: 12px 24px;
+  padding: 14px 28px;
   gap: 16px;
-  background: #fff;
+  background: transparent;
 }
 
 /* 좌측: 로고 프레임 */
@@ -46,14 +57,14 @@
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: border-color 0.2s;
 }
 
 /* 로고 미등록 시 시각적 플레이스홀더 */
 .nl-logo-frame[data-has-logo="0"] {
-  border: 1.5px dashed #c0c8d4;
-  background: #f4f6fa;
+  border: 1.5px dashed #9ec6d8;
+  background: rgba(255, 255, 255, 0.65);
 }
 
 .nl-logo-frame[data-has-logo="0"]::after {
@@ -63,7 +74,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 0.68em;
-  color: #a8b3c4;
+  color: #8ab2c6;
   white-space: nowrap;
   letter-spacing: 0.05em;
   pointer-events: none;
@@ -86,8 +97,8 @@
 .nl-main-title {
   font-size: 1.7em;
   font-weight: 800;
-  color: #1a1a1a;
-  letter-spacing: 0.22em;
+  color: #25455e;
+  letter-spacing: 0.26em;
   text-align: center;
   margin: 0;
   line-height: 1.2;
@@ -106,40 +117,40 @@
 .nl-school-name {
   font-size: 0.95em;
   font-weight: 700;
-  color: #2c3e50;
+  color: #3a6a85;
   letter-spacing: 0.04em;
   text-align: right;
 }
 
-/* 부서명/연락처 행: 진하게 */
+/* 부서명/연락처 행: 소프트 파스텔 */
 .nl-header-info {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0;
-  padding: 0 24px;
-  background: #1e3a5f;
-  border-top: none;
+  padding: 0 28px;
+  background: #ddeef7;
+  border-top: 1px solid #c0d8e8;
 }
 
 .nl-dept,
 .nl-phone {
   font-size: 0.75em;
-  color: rgba(255, 255, 255, 0.88);
-  font-weight: 400;
-  padding: 6px 12px;
+  color: #4a6e84;
+  font-weight: 500;
+  padding: 6px 14px;
   letter-spacing: 0.02em;
 }
 
 .nl-dept {
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid #b5d0e2;
 }
 
 /* ── Section 2: 제목 ── */
 .nl-subject-section {
-  border-left: 1.5px solid #c8cdd6;
-  border-right: 1.5px solid #c8cdd6;
-  border-top: 1px solid #c8cdd6;
+  border-left: 1.5px solid #c5dce8;
+  border-right: 1.5px solid #c5dce8;
+  border-top: 1px solid #c5dce8;
   background: #fff;
 }
 
@@ -155,7 +166,7 @@
   justify-content: center;
   min-width: 90px;
   padding: 10px 16px;
-  background: #1e3a5f;
+  background: linear-gradient(160deg, #5598b8 0%, #4a8daa 100%);
   border-right: none;
   font-size: 0.88em;
   font-weight: 700;
@@ -170,26 +181,27 @@
   padding: 10px 20px;
   font-size: 1em;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #25455e;
   flex: 1;
-  border-left: 2px solid #e2e6ed;
+  border-left: 2px solid #a8d0e3;
+  background: #fafcfe;
 }
 
 /* ── Section 3: 본문 ── */
 .nl-content-section {
-  border-left: 1.5px solid #c8cdd6;
-  border-right: 1.5px solid #c8cdd6;
-  border-top: 1px solid #c8cdd6;
+  border-left: 1.5px solid #c5dce8;
+  border-right: 1.5px solid #c5dce8;
+  border-top: 1px solid #c5dce8;
   background: #fff;
 }
 
 .nl-content-area {
   min-height: 820px;
-  padding: 24px;
+  padding: 24px 28px;
   font-size: var(--nl-font-size, 0.95em);
   line-height: var(--nl-line-height, 1.9);
   font-weight: var(--nl-font-weight, normal);
-  color: #222;
+  color: #2a3f52;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -197,9 +209,9 @@
 }
 
 .nl-content-area.nl-body-drop-over {
-  outline: 2px dashed #1e3a5f;
+  outline: 2px dashed #4a8daa;
   outline-offset: -4px;
-  background: #f0f4fa;
+  background: #f0f7fb;
 }
 
 /* 본문에 삽입된 블록 */
@@ -220,9 +232,9 @@
   gap: 2px;
   z-index: 10;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 2px 3px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 8px rgba(74, 141, 170, 0.18);
 }
 
 .nl-body-block-wrap:hover .nl-body-block-controls {
@@ -235,19 +247,19 @@
   justify-content: center;
   width: 26px;
   min-height: 26px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  border: 1px solid #d4e8f2;
+  border-radius: 5px;
   background: #fff;
   cursor: pointer;
   font-size: 14px;
-  color: #555;
+  color: #4a8daa;
   padding: 0;
   transition: background 0.15s, color 0.15s;
 }
 
 .nl-body-ctrl-btn:hover {
-  background: #f0f0f0;
-  color: #111;
+  background: #eef6fb;
+  color: #25455e;
 }
 
 .nl-body-ctrl-del:hover {
@@ -258,20 +270,31 @@
 
 /* ── Section 4: 푸터 ── */
 .nl-footer-section {
-  border: 1.5px solid #c8cdd6;
-  border-top: 1px solid #c8cdd6;
-  background: #fafbfc;
+  border: 1.5px solid #c5dce8;
+  border-top: 1px solid #c5dce8;
+  background: linear-gradient(160deg, #eef6fb 0%, #f7fbfe 100%);
 }
 
 .nl-footer-inner {
-  padding: 22px 24px 26px;
+  padding: 20px 24px 24px;
   text-align: center;
+  position: relative;
+}
+
+.nl-footer-inner::before {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, #4a8daa, #7ab8cf);
+  border-radius: 2px;
+  margin: 0 auto 14px;
 }
 
 .nl-footer-date {
   font-size: 0.95em;
   font-weight: 600;
-  color: #2c3e50;
+  color: #3a6a85;
   letter-spacing: 0.1em;
   margin: 0 0 8px;
 }
@@ -279,7 +302,7 @@
 .nl-footer-sign {
   font-size: 1.05em;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #25455e;
   letter-spacing: 0.12em;
   margin: 0;
 }
