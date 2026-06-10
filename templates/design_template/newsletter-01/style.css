@@ -223,51 +223,7 @@
 }
 
 
-/* body 블록 컨트롤 오버레이 */
-.nl-body-block-controls {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  display: none;
-  align-items: center;
-  gap: 2px;
-  z-index: 10;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 6px;
-  padding: 2px 3px;
-  box-shadow: 0 2px 8px rgba(74, 141, 170, 0.18);
-}
-
-.nl-body-block-wrap:hover .nl-body-block-controls {
-  display: flex;
-}
-
-.nl-body-ctrl-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  min-height: 26px;
-  border: 1px solid #d4e8f2;
-  border-radius: 5px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  color: #4a8daa;
-  padding: 0;
-  transition: background 0.15s, color 0.15s;
-}
-
-.nl-body-ctrl-btn:hover {
-  background: #eef6fb;
-  color: #25455e;
-}
-
-.nl-body-ctrl-del:hover {
-  background: #fde8e8;
-  color: #c53030;
-  border-color: #fca5a5;
-}
+/* body 블록 컨트롤 오버레이 → common.css의 .inner-block-actions / .inner-block-btn 사용 */
 
 /* ── Section 4: 푸터 ── */
 .nl-footer-section {

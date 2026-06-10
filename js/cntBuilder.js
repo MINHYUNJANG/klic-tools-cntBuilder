@@ -148,6 +148,11 @@ function cloneData(data) {
 	return JSON.parse(JSON.stringify(data));
 }
 
+// 블록 안 블록 공통 액션 버튼 HTML 생성
+function _innerBlockActionsHtml(propsHtml, removeBtnHtml) {
+	return `<div class="inner-block-actions">${propsHtml}${removeBtnHtml}</div>`;
+}
+
 // 혼합 블록 내부 참조 해석 (복합 ID: "outerBlockId::inner::idx" 또는 "outerBlockId::pstep::stepIdx::inner::innerIdx")
 function resolveMixInnerRef(blockId) {
 	// process-02 step inner ref: "blockId::pstep::N::inner::M"
@@ -185,12 +190,28 @@ function resolveListInnerRef(blockId) {
 	return { outerBlock, listBlock: item.listBlock, colIdx };
 }
 
+// 테이블 셀 내부 블록 참조 해석 (복합 ID: "outerBlockId::tcell::cellKey")
+function resolveTableCellInnerRef(blockId) {
+	const m = typeof blockId === 'string' && blockId.match(/^(.+)::tcell::(.+)$/);
+	if (!m) return null;
+	const outerBlock = state.blocks.find(b => b.id === m[1]);
+	if (!outerBlock) return null;
+	const cellKey = m[2];
+	const innerBlockData = outerBlock.tableCellInnerBlocks?.[cellKey];
+	if (!innerBlockData) return null;
+	return { outerBlock, innerBlockData, cellKey };
+}
+
 function resolveBlockForRows(blockId) {
 	const block = state.blocks.find(b => b.id === blockId);
 	if (block) return block;
 	const mixRef = resolveMixInnerRef(blockId);
 	if (mixRef) {
 		return { id: blockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items };
+	}
+	const tcellRef = resolveTableCellInnerRef(blockId);
+	if (tcellRef) {
+		return { id: blockId, type: tcellRef.innerBlockData.type, items: tcellRef.innerBlockData.items };
 	}
 	return null;
 }
@@ -200,6 +221,8 @@ function findItemByBlockId(blockId, columnIndex) {
 	if (mixRef) return mixRef.innerBlock.items[columnIndex] ?? null;
 	const listRef = resolveListInnerRef(blockId);
 	if (listRef) return listRef.listBlock.items[columnIndex] ?? null;
+	const tcellRef = resolveTableCellInnerRef(blockId);
+	if (tcellRef) return tcellRef.innerBlockData.items[columnIndex] ?? null;
 	const block = state.blocks.find(b => b.id === blockId);
 	return block?.items[columnIndex] ?? null;
 }
@@ -1329,15 +1352,62 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 	for (let c = 0; c < colCount; c++) {
 		const cellKey = `${rowData.key}_c${c}`;
 		if (hiddenCells && hiddenCells.has(cellKey)) continue;
-		const cellTag = isThSection ? 'th' : (rowData.cellTags?.[c] || 'td');
-		const alignVal = cellTag === 'th' ? (rowData.thAlign || '') : (rowData.tdAlign || '');
+		// thead: always th; tfoot/tbody: respect per-cell cellTags
+		const cellTag = sectionTag === 'thead' ? 'th' : (rowData.cellTags?.[c] || (sectionTag === 'tfoot' ? 'th' : 'td'));
+		const alignVal = (rowData.cellAligns?.[c]) ?? (cellTag === 'th' ? (rowData.thAlign || '') : (rowData.tdAlign || ''));
 		const cell = document.createElement(cellTag);
 		if (alignVal) cell.className = alignVal;
-		if (cellTag === 'th') cell.setAttribute('scope', isThSection && sectionTag === 'thead' ? 'col' : 'row');
+		if (cellTag === 'th') cell.setAttribute('scope', sectionTag === 'thead' ? 'col' : 'row');
 		const span = cellSpan[cellKey];
 		if (span?.colspan > 1) cell.setAttribute('colspan', String(span.colspan));
 		if (span?.rowspan > 1) cell.setAttribute('rowspan', String(span.rowspan));
-		cell.innerHTML = item[cellKey] || '';
+
+		const isBlockZone = !!(block.tableCellBlockZones?.[cellKey]);
+		if (isBlockZone && editable) {
+			cell.dataset.cellBlockZone = 'true';
+			cell.dataset.blockId = block.id;
+			cell.dataset.cellKey = cellKey;
+		}
+
+		const innerBlockData = block.tableCellInnerBlocks?.[cellKey];
+		if (isBlockZone && innerBlockData) {
+			const innerTemplate = componentTemplates[innerBlockData.type];
+			if (innerTemplate) {
+				const isListInner = templateCategories[innerBlockData.type] === 'list';
+				const fakeBlock = { id: `${block.id}::tcell::${cellKey}`, type: innerBlockData.type, columns: innerBlockData.items?.length || 1, items: innerBlockData.items };
+				const zoneEl = document.createElement('div');
+				zoneEl.className = 'table-cell-block-zone has-block';
+				if (editable) {
+					const propsHtml = isListInner
+						? `<button type="button" class="table-cell-inner-props inner-block-btn inner-block-btn--props" data-tcell-inner-props-id="${escapeAttr(`${block.id}::tcell::${cellKey}`)}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
+						: '';
+					const removeHtml = `<button type="button" class="table-cell-inner-remove inner-block-btn inner-block-btn--remove" data-block-id="${escapeAttr(block.id)}" data-cell-key="${escapeAttr(cellKey)}" title="블록 제거"><i class="ri-close-line"></i></button>`;
+					zoneEl.insertAdjacentHTML('afterbegin', _innerBlockActionsHtml(propsHtml, removeHtml));
+				}
+				let innerEl;
+				if (isListInner && fakeBlock.items[0]?.rows) {
+					innerEl = renderListDynamically(fakeBlock, fakeBlock.items[0], 0, innerTemplate.element, false);
+				} else {
+					innerEl = buildColumnBlock(innerTemplate, fakeBlock, false);
+				}
+				if (typeof innerEl === 'string') { zoneEl.innerHTML += innerEl; }
+				else { zoneEl.appendChild(innerEl); }
+				cell.appendChild(zoneEl);
+			}
+		} else if (isBlockZone) {
+			const zoneEl = document.createElement('div');
+			zoneEl.className = 'table-cell-block-zone is-empty';
+			if (editable) {
+				zoneEl.dataset.cellBlockZone = 'true';
+				zoneEl.dataset.blockId = block.id;
+				zoneEl.dataset.cellKey = cellKey;
+			}
+			zoneEl.innerHTML = '<div class="mix-slot-placeholder"><i class="ri-add-circle-line"></i> 디자인 블록을 드래그해서 넣으세요.</div>';
+			cell.appendChild(zoneEl);
+		} else {
+			cell.innerHTML = item[cellKey] || '';
+		}
+
 		if (editable) {
 			cell.dataset.editField = cellKey;
 			cell.dataset.blockId = block.id;
@@ -1497,17 +1567,30 @@ function _renderTableSectionRows(block, sectionTag, rows) {
 	const colCount = block.tableColCount || 4;
 	return `<div class="props-table-mini" style="--props-table-cols:${colCount + 1}">${rows.map((row, idx) => {
 		const removeDisabled = sectionTag === 'tbody' && rows.length <= 1;
-		const cellTags = row.cellTags || Array(colCount).fill('td');
+		const cellTags = row.cellTags || [];
 		const rowControls = `<span class="props-table-mini-cell props-table-row-control-cell">
 			<button type="button" class="props-list-row-remove-btn props-table-tr-remove-btn" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" title="행 삭제"${removeDisabled ? ' disabled' : ''}><i class="ri-subtract-line"></i></button>
 		</span>`;
 		const cells = Array.from({ length: colCount }, (_, c) => {
-			const t = sectionTag === 'tbody' ? (cellTags[c] || 'td') : 'th';
-			const cellLabel = String(c + 1);
-			if (sectionTag !== 'tbody') {
-				return `<span class="props-table-mini-cell is-th" title="열 ${cellLabel}: th">${cellLabel}</span>`;
+			const cellKey = `${row.key}_c${c}`;
+			// thead: always th, no toggle
+			if (sectionTag === 'thead') {
+				return `<span class="props-table-mini-cell is-th" title="${cellKey}"><span class="props-mini-cell-tag">th</span></span>`;
 			}
-			return `<button type="button" class="props-table-mini-cell props-table-cell-tag-btn${t === 'th' ? ' is-th' : ''}" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" title="열 ${c + 1}: ${t} (클릭하여 th/td 전환)">${cellLabel}</button>`;
+			// tfoot / tbody
+			const defaultTag = sectionTag === 'tfoot' ? 'th' : 'td';
+			const t = cellTags[c] || defaultTag;
+			const isBlockZone = !!(block.tableCellBlockZones?.[cellKey]);
+			const hasInner = !!(block.tableCellInnerBlocks?.[cellKey]);
+			// tbody td: tag toggle btn + zone toggle btn
+			if (sectionTag === 'tbody' && t === 'td') {
+				return `<div class="props-table-mini-cell${isBlockZone ? ' is-block-zone' : ''}" title="${cellKey}">
+					<button type="button" class="props-mini-cell-tag-btn props-table-cell-tag-btn" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" data-section="tbody" title="th/td 전환">td</button>
+					<button type="button" class="props-mini-cell-zone-btn${isBlockZone ? ' is-active' : ''}" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" data-cell-key="${cellKey}" title="디자인블록으로 변경${isBlockZone ? ' (해제)' : ''}"><i class="ri-layout-grid-line" aria-hidden="true"></i></button>
+				</div>`;
+			}
+			// tfoot or tbody th: single toggle button
+			return `<button type="button" class="props-table-mini-cell is-th props-table-cell-tag-btn" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" data-section="${sectionTag}" title="th/td 전환"><span class="props-mini-cell-tag">${t}</span></button>`;
 		}).join('');
 		return `<div class="props-table-mini-row">
 			<div class="props-table-mini-cells">${rowControls}${cells}</div>
@@ -1616,7 +1699,7 @@ function getTableRowsKey(sectionTag) {
 
 let _tableCellPopoverInfo = null;
 let _tableCellDragEventsBound = false;
-let _pendingTableMerge = null;
+let _tableSelection = null;
 
 function openTableCellSpanPopover(cell) {
 	if (document.body.classList.contains('preview-mode')) return;
@@ -1710,11 +1793,38 @@ function clearTableDragRange() {
 	document.querySelectorAll('.is-table-drag-range').forEach(cell => cell.classList.remove('is-table-drag-range'));
 }
 
-function closeTableMergeConfirm(clearRange = true) {
-	const layer = document.getElementById('tableMergeConfirmLayer');
-	if (layer) layer.style.display = 'none';
-	_pendingTableMerge = null;
-	if (clearRange) clearTableDragRange();
+function closeTableContextMenu(clearSelection = false) {
+	const menu = document.getElementById('tableContextMenu');
+	if (menu) menu.style.display = 'none';
+	if (clearSelection) {
+		_tableSelection = null;
+		clearTableDragRange();
+	}
+}
+
+function getTableSelectionBounds(start, end) {
+	if (!start || !end || start.blockId !== end.blockId || start.sectionTag !== end.sectionTag) return null;
+	const minRow = Math.min(start.rowIdx, end.rowIdx);
+	const maxRow = Math.max(start.rowIdx, end.rowIdx);
+	const minCol = Math.min(start.colIdx, end.colIdx);
+	const maxCol = Math.max(start.colIdx, end.colIdx);
+	const rows = start.block[getTableRowsKey(start.sectionTag)] || [];
+	const topLeftRow = rows[minRow];
+	if (!topLeftRow) return null;
+	return {
+		block: start.block,
+		blockId: start.blockId,
+		sectionTag: start.sectionTag,
+		rows,
+		minRow,
+		maxRow,
+		minCol,
+		maxCol,
+		topLeftKey: `${topLeftRow.key}_c${minCol}`,
+		colspan: maxCol - minCol + 1,
+		rowspan: maxRow - minRow + 1,
+		cellCount: (maxRow - minRow + 1) * (maxCol - minCol + 1)
+	};
 }
 
 function updateTableDragRange(targetCell) {
@@ -1746,7 +1856,7 @@ function updateTableDragRange(targetCell) {
 function startTableCellDrag(cell, event) {
 	const start = getTableCellDragInfo(cell);
 	if (!start) return;
-	closeTableMergeConfirm(true);
+	closeTableContextMenu(false);
 	state.tableCellDrag = { start, end: start, blockId: start.blockId, sectionTag: start.sectionTag, moved: false };
 	clearTableDragRange();
 	cell.classList.add('is-table-drag-range');
@@ -1756,59 +1866,9 @@ function startTableCellDrag(cell, event) {
 	closeTableCellSpanPopover();
 }
 
-function getTableMergeConfirmLayer() {
-	let layer = document.getElementById('tableMergeConfirmLayer');
-	if (layer) return layer;
-
-	layer = document.createElement('div');
-	layer.id = 'tableMergeConfirmLayer';
-	layer.className = 'table-merge-confirm-layer';
-	layer.innerHTML = `
-		<p class="table-merge-confirm-text">선택한 셀을 병합하시겠습니까?</p>
-		<div class="table-merge-confirm-actions">
-			<button type="button" class="table-merge-confirm-btn table-merge-confirm-yes">병합</button>
-			<button type="button" class="table-merge-confirm-btn table-merge-confirm-no">취소</button>
-		</div>
-	`;
-	document.body.appendChild(layer);
-
-	layer.querySelector('.table-merge-confirm-yes').addEventListener('click', () => applyPendingTableMerge());
-	layer.querySelector('.table-merge-confirm-no').addEventListener('click', () => closeTableMergeConfirm(true));
-	return layer;
-}
-
-function positionTableMergeConfirm() {
-	const layer = getTableMergeConfirmLayer();
-	const cells = Array.from(document.querySelectorAll('.is-table-drag-range'));
-	if (!cells.length) return;
-
-	const rects = cells.map(cell => cell.getBoundingClientRect());
-	const left = Math.min(...rects.map(rect => rect.left));
-	const right = Math.max(...rects.map(rect => rect.right));
-	const top = Math.min(...rects.map(rect => rect.top));
-	const bottom = Math.max(...rects.map(rect => rect.bottom));
-
-	layer.style.display = 'block';
-	const lw = layer.offsetWidth;
-	const lh = layer.offsetHeight;
-	let x = left + (right - left) / 2 - lw / 2;
-	let y = top - lh - 8;
-	if (y < 8) y = bottom + 8;
-	x = Math.max(8, Math.min(x, window.innerWidth - lw - 8));
-	y = Math.max(8, Math.min(y, window.innerHeight - lh - 8));
-	layer.style.left = `${x}px`;
-	layer.style.top = `${y}px`;
-}
-
-function openTableMergeConfirm(data) {
-	_pendingTableMerge = data;
-	positionTableMergeConfirm();
-}
-
-function applyPendingTableMerge() {
-	const pending = _pendingTableMerge;
-	if (!pending) return;
-	const { block, rows, minRow, maxRow, minCol, maxCol, topLeftKey, colspan, rowspan } = pending;
+function applyTableMerge(selection = _tableSelection) {
+	if (!selection || selection.cellCount < 2) return;
+	const { block, rows, minRow, maxRow, minCol, maxCol, topLeftKey, colspan, rowspan } = selection;
 
 	if (!block.cellSpan) block.cellSpan = {};
 	pushHistory();
@@ -1820,8 +1880,164 @@ function applyPendingTableMerge() {
 		}
 	}
 	block.cellSpan[topLeftKey] = { colspan, rowspan };
-	closeTableMergeConfirm(true);
+	closeTableContextMenu(true);
 	render();
+}
+
+function splitTableCell(selection = _tableSelection) {
+	if (!selection) return;
+	const span = selection.block.cellSpan?.[selection.topLeftKey];
+	if (!span || ((span.colspan || 1) <= 1 && (span.rowspan || 1) <= 1)) return;
+	pushHistory();
+	delete selection.block.cellSpan[selection.topLeftKey];
+	closeTableContextMenu(true);
+	render();
+}
+
+function alignTableSelection(align) {
+	const selection = _tableSelection;
+	if (!selection) return;
+	const { rows, minRow, maxRow, minCol, maxCol } = selection;
+	pushHistory();
+	for (let r = minRow; r <= maxRow; r++) {
+		const row = rows[r];
+		if (!row) continue;
+		if (!row.cellAligns) row.cellAligns = {};
+		for (let c = minCol; c <= maxCol; c++) {
+			row.cellAligns[c] = align;
+		}
+	}
+	closeTableContextMenu(false);
+	render();
+}
+
+function getTableContextMenu() {
+	let menu = document.getElementById('tableContextMenu');
+	if (menu) return menu;
+
+	menu = document.createElement('div');
+	menu.id = 'tableContextMenu';
+	menu.className = 'table-context-menu';
+	menu.innerHTML = `
+		<div class="table-context-menu-group">
+			<p class="table-context-menu-title">정렬</p>
+			<div class="table-context-aligns">
+				<button type="button" data-table-menu-align="al" title="왼쪽"><i class="ri-align-left" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-align="ac" title="가운데"><i class="ri-align-center" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-align="ar" title="오른쪽"><i class="ri-align-right" aria-hidden="true"></i></button>
+			</div>
+		</div>
+		<button type="button" class="table-context-menu-item" data-table-menu-action="merge">셀 합치기</button>
+		<button type="button" class="table-context-menu-item" data-table-menu-action="split">셀 나누기</button>
+		<button type="button" class="table-context-menu-item" data-table-menu-action="block-zone">디자인블록으로 변경</button>
+	`;
+	document.body.appendChild(menu);
+
+	menu.addEventListener('click', event => {
+		const alignBtn = event.target.closest('[data-table-menu-align]');
+		if (alignBtn) {
+			alignTableSelection(alignBtn.dataset.tableMenuAlign);
+			return;
+		}
+		const actionBtn = event.target.closest('[data-table-menu-action]');
+		if (!actionBtn || actionBtn.disabled) return;
+		if (actionBtn.dataset.tableMenuAction === 'merge') applyTableMerge();
+		if (actionBtn.dataset.tableMenuAction === 'split') splitTableCell();
+		if (actionBtn.dataset.tableMenuAction === 'block-zone') {
+			const sel = _tableSelection;
+			if (!sel || sel.sectionTag !== 'tbody') return;
+			const { rows, minRow, maxRow, minCol, maxCol, blockId } = sel;
+			pushHistory();
+			const block = sel.block;
+			if (!block.tableCellBlockZones) block.tableCellBlockZones = {};
+			for (let r = minRow; r <= maxRow; r++) {
+				const row = rows[r];
+				if (!row) continue;
+				for (let c = minCol; c <= maxCol; c++) {
+					const cellTag = row.cellTags?.[c] || 'td';
+					if (cellTag !== 'td') continue;
+					const cellKey = `${row.key}_c${c}`;
+					if (block.tableCellBlockZones[cellKey]) {
+						delete block.tableCellBlockZones[cellKey];
+						if (block.tableCellInnerBlocks?.[cellKey]) delete block.tableCellInnerBlocks[cellKey];
+					} else {
+						block.tableCellBlockZones[cellKey] = true;
+						(block.items || []).forEach(item => { if (cellKey in item) item[cellKey] = ''; });
+					}
+				}
+			}
+			closeTableContextMenu(false);
+			render();
+			renderPropsTableSection(block);
+		}
+	});
+	return menu;
+}
+
+function selectTableRange(start, end) {
+	const bounds = getTableSelectionBounds(start, end);
+	if (!bounds) return null;
+	_tableSelection = bounds;
+	clearTableDragRange();
+	const table = document.querySelector(`[data-block-id="${CSS.escape(bounds.blockId)}"][data-table-section="${bounds.sectionTag}"]`)?.closest('table');
+	if (!table) return bounds;
+	table.querySelectorAll(`[data-block-id="${CSS.escape(bounds.blockId)}"][data-table-section="${bounds.sectionTag}"]`).forEach(cell => {
+		const info = getTableCellDragInfo(cell);
+		if (!info) return;
+		if (info.rowIdx >= bounds.minRow && info.rowIdx <= bounds.maxRow && info.colIdx >= bounds.minCol && info.colIdx <= bounds.maxCol) {
+			cell.classList.add('is-table-drag-range');
+		}
+	});
+	return bounds;
+}
+
+function openTableContextMenu(cell, event) {
+	if (document.body.classList.contains('preview-mode')) return;
+	const info = getTableCellDragInfo(cell);
+	if (!info) return;
+	event.preventDefault();
+	event.stopPropagation();
+	closeTableCellSpanPopover();
+
+	if (!_tableSelection || _tableSelection.blockId !== info.blockId || _tableSelection.sectionTag !== info.sectionTag ||
+		info.rowIdx < _tableSelection.minRow || info.rowIdx > _tableSelection.maxRow ||
+		info.colIdx < _tableSelection.minCol || info.colIdx > _tableSelection.maxCol) {
+		selectTableRange(info, info);
+	}
+
+	const menu = getTableContextMenu();
+	const canMerge = _tableSelection && _tableSelection.cellCount >= 2;
+	const splitSpan = _tableSelection?.block.cellSpan?.[_tableSelection.topLeftKey];
+	const canSplit = !!splitSpan && ((splitSpan.colspan || 1) > 1 || (splitSpan.rowspan || 1) > 1);
+	menu.querySelector('[data-table-menu-action="merge"]').disabled = !canMerge;
+	menu.querySelector('[data-table-menu-action="split"]').disabled = !canSplit;
+	const blockZoneBtn = menu.querySelector('[data-table-menu-action="block-zone"]');
+	const isInTbody = _tableSelection?.sectionTag === 'tbody';
+	blockZoneBtn.style.display = isInTbody ? '' : 'none';
+	if (isInTbody) {
+		const sel = _tableSelection;
+		let hasTd = false, hasSomeZone = false;
+		for (let r = sel.minRow; r <= sel.maxRow; r++) {
+			const row = sel.rows[r]; if (!row) continue;
+			for (let c = sel.minCol; c <= sel.maxCol; c++) {
+				const cellKey = `${row.key}_c${c}`;
+				if ((row.cellTags?.[c] || 'td') === 'td') hasTd = true;
+				if (sel.block.tableCellBlockZones?.[cellKey]) hasSomeZone = true;
+			}
+		}
+		blockZoneBtn.disabled = !hasTd;
+		blockZoneBtn.textContent = hasSomeZone ? '디자인블록 해제' : '디자인블록으로 변경';
+	}
+
+	menu.style.display = 'block';
+	const mw = menu.offsetWidth;
+	const mh = menu.offsetHeight;
+	let left = event.clientX + 8;
+	let top = event.clientY;
+	if (left + mw > window.innerWidth - 8) left = event.clientX - mw - 8;
+	if (top + mh > window.innerHeight - 8) top = window.innerHeight - mh - 8;
+	menu.style.left = `${Math.max(8, left)}px`;
+	menu.style.top = `${Math.max(8, top)}px`;
 }
 
 function finishTableCellDrag() {
@@ -1847,25 +2063,7 @@ function finishTableCellDrag() {
 		return;
 	}
 
-	const rows = start.block[getTableRowsKey(start.sectionTag)] || [];
-	const topLeftRow = rows[minRow];
-	if (!topLeftRow) {
-		clearTableDragRange();
-		return;
-	}
-
-	const topLeftKey = `${topLeftRow.key}_c${minCol}`;
-	openTableMergeConfirm({
-		block: start.block,
-		rows,
-		minRow,
-		maxRow,
-		minCol,
-		maxCol,
-		topLeftKey,
-		colspan,
-		rowspan
-	});
+	selectTableRange(start, end);
 }
 
 function renderPropsTabItems(block) {
@@ -1977,9 +2175,15 @@ function openBlockProps(blockId) {
 	let isMixInnerBlock = false;
 	if (!block) {
 		const mixRef = resolveMixInnerRef(blockId);
-		if (!mixRef) return;
-		block = { id: blockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items, blockWidth: null, marginBottom: mixRef.innerBlock.marginBottom ?? 10, blockAlign: '' };
-		isMixInnerBlock = true;
+		if (mixRef) {
+			block = { id: blockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items, blockWidth: null, marginBottom: mixRef.innerBlock.marginBottom ?? 10, blockAlign: '' };
+			isMixInnerBlock = true;
+		} else {
+			const tcellRef = resolveTableCellInnerRef(blockId);
+			if (!tcellRef) return;
+			block = { id: blockId, type: tcellRef.innerBlockData.type, items: tcellRef.innerBlockData.items, blockWidth: null, marginBottom: tcellRef.innerBlockData.marginBottom ?? 0, blockAlign: '' };
+			isMixInnerBlock = true;
+		}
 	}
 	_propsBlockId = blockId;
 
@@ -3025,22 +3229,37 @@ function initBlockPropsPanel() {
 				return;
 			}
 
-			// tbody 셀별 태그 토글 (th ↔ td)
+			// 셀별 태그 토글 (th ↔ td) — thead 제외
 			const cellTagBtn = event.target.closest('.props-table-cell-tag-btn');
 			if (cellTagBtn) {
 				const blockId = cellTagBtn.dataset.blockId;
 				const rowKey = cellTagBtn.dataset.rowKey;
 				const colIdx = parseInt(cellTagBtn.dataset.colIdx);
+				const sectionTag = cellTagBtn.dataset.section;
+				if (sectionTag === 'thead') return;
 				const block = state.blocks.find(b => b.id === blockId);
 				if (!block) return;
-				const row = (block.tableTbodyRows || []).find(r => r.key === rowKey);
+				const rowsKey = getTableRowsKey(sectionTag);
+				const row = (block[rowsKey] || []).find(r => r.key === rowKey);
 				if (!row) return;
 				const colCount = block.tableColCount || 4;
-				if (!row.cellTags) row.cellTags = Array(colCount).fill('td');
+				const defaultTag = sectionTag === 'tfoot' ? 'th' : 'td';
+				if (!row.cellTags) row.cellTags = Array(colCount).fill(defaultTag);
 				pushHistory();
-				row.cellTags[colIdx] = row.cellTags[colIdx] === 'th' ? 'td' : 'th';
+				row.cellTags[colIdx] = (row.cellTags[colIdx] || defaultTag) === 'th' ? 'td' : 'th';
 				render();
 				renderPropsTableSection(block);
+				return;
+			}
+
+			// tbody td 셀 디자인블록 영역 토글
+			const zoneBtn = event.target.closest('.props-mini-cell-zone-btn');
+			if (zoneBtn) {
+				const blockId = zoneBtn.dataset.blockId;
+				const cellKey = zoneBtn.dataset.cellKey;
+				const block = state.blocks.find(b => b.id === blockId);
+				if (!block) return;
+				toggleTableCellBlockZone(blockId, cellKey);
 				return;
 			}
 
@@ -3082,6 +3301,7 @@ function initBlockPropsPanel() {
 				return;
 			}
 		});
+
 	}
 
 	// 패널 외부 클릭 시 닫기
@@ -3277,6 +3497,71 @@ function removeProcessStepInnerBlock(blockId, stepIdx, innerIdx) {
 	item.innerBlocks.splice(innerIdx, 1);
 	render();
 	selectBlock(blockId);
+}
+
+function toggleTableCellBlockZone(blockId, cellKey) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+	pushHistory();
+	if (!block.tableCellBlockZones) block.tableCellBlockZones = {};
+	if (block.tableCellBlockZones[cellKey]) {
+		delete block.tableCellBlockZones[cellKey];
+		if (block.tableCellInnerBlocks?.[cellKey]) delete block.tableCellInnerBlocks[cellKey];
+	} else {
+		block.tableCellBlockZones[cellKey] = true;
+		// 기존 셀 텍스트 내용 초기화
+		(block.items || []).forEach(item => { if (cellKey in item) item[cellKey] = ''; });
+	}
+	render();
+	renderPropsTableSection(block);
+}
+
+function addTableCellInnerBlock(blockId, cellKey, innerType) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return;
+	const innerTemplate = componentTemplates[innerType];
+	if (!innerTemplate) return;
+	pushHistory();
+	const innerData = innerTemplate.getDefaultData ? innerTemplate.getDefaultData() : {};
+	if (!block.tableCellInnerBlocks) block.tableCellInnerBlocks = {};
+	block.tableCellInnerBlocks[cellKey] = {
+		type: innerType,
+		marginBottom: 0,
+		items: [{ ...cloneData(innerData), style: createStyleForType(innerType) }]
+	};
+	if (templateCategories[innerType] === 'list') {
+		ensureListRows({ id: `${blockId}::tcell::${cellKey}`, type: innerType, items: block.tableCellInnerBlocks[cellKey].items });
+	}
+	state.dragPayload = '';
+	render();
+	renderPropsTableSection(block);
+}
+
+function addTableCellInnerBlockFromExisting(blockId, cellKey, sourceBlockId) {
+	const block = state.blocks.find(b => b.id === blockId);
+	const sourceBlock = state.blocks.find(b => b.id === sourceBlockId);
+	if (!block || !sourceBlock) return;
+	if (!MIX_ALLOWED.has(templateCategories[sourceBlock.type])) return;
+	pushHistory();
+	if (!block.tableCellInnerBlocks) block.tableCellInnerBlocks = {};
+	block.tableCellInnerBlocks[cellKey] = {
+		type: sourceBlock.type,
+		marginBottom: 0,
+		items: cloneData(sourceBlock.items || [])
+	};
+	state.blocks = state.blocks.filter(b => b.id !== sourceBlockId);
+	state.dragPayload = '';
+	render();
+	renderPropsTableSection(block);
+}
+
+function removeTableCellInnerBlock(blockId, cellKey) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block || !block.tableCellInnerBlocks?.[cellKey]) return;
+	pushHistory();
+	delete block.tableCellInnerBlocks[cellKey];
+	render();
+	renderPropsTableSection(block);
 }
 
 function moveProcessStepInnerBlock(blockId, stepIdx, fromIdx, toIdx) {
@@ -4532,6 +4817,14 @@ function render() {
 				});
 			});
 		}
+		// 테이블 셀 내부 블록 list rows 초기화
+		if (block.tableCellInnerBlocks) {
+			Object.entries(block.tableCellInnerBlocks).forEach(([cellKey, ib]) => {
+				if (templateCategories[ib.type] === 'list') {
+					ensureListRows({ id: `${block.id}::tcell::${cellKey}`, type: ib.type, items: ib.items });
+				}
+			});
+		}
 	});
 	const { hasBlocks, hasOverlays } = syncCanvasPresence();
 	canvasGrid.className = hasBlocks ? 'canvas-grid' : 'canvas-grid is-empty';
@@ -4912,7 +5205,10 @@ function renderRepeatedColumns(block) {
 							if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
 							else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
 							const bbInnerHtml = renderRepeatedColumns(bb);
-							const ctrlHtml = `<div class="nl-body-block-controls" aria-hidden="true"><button type="button" class="nl-body-ctrl-btn" data-nl-body-props-id="${bb.id}" title="속성"><i class="ri-settings-3-line" aria-hidden="true"></i></button><button type="button" class="nl-body-ctrl-btn nl-body-ctrl-del" data-nl-body-delete-id="${bb.id}" title="삭제"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div>`;
+							const ctrlHtml = _innerBlockActionsHtml(
+								`<button type="button" class="inner-block-btn inner-block-btn--props" data-nl-body-props-id="${bb.id}" title="속성" aria-hidden="true"><i class="ri-settings-3-line"></i></button>`,
+								`<button type="button" class="inner-block-btn inner-block-btn--remove" data-nl-body-delete-id="${bb.id}" title="삭제" aria-hidden="true"><i class="ri-delete-bin-line"></i></button>`
+							);
 							wrapper.innerHTML = ctrlHtml + bbInnerHtml;
 							contentArea.appendChild(wrapper);
 						});
@@ -5057,13 +5353,13 @@ function buildColumnBlock(template, block, editable) {
 							innerHtml = buildColumnBlock(innerTemplate, fakeBlock, true);
 						}
 						const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
-						const propsBtn = isListInner
-							? `<button type="button" class="mix-inner-props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
+						const propsHtml = isListInner
+							? `<button type="button" class="mix-inner-props inner-block-btn inner-block-btn--props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
 							: '';
+						const removeHtml = `<button type="button" class="mix-inner-remove inner-block-btn inner-block-btn--remove" data-mix-block-id="${block.id}" data-mix-inner-idx="${idx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>`;
 						return `<div class="mix-inner-item" draggable="true" data-mix-block-id="${block.id}" data-mix-inner-idx="${idx}"${mbStyle}>
 							<div class="mix-inner-drag-handle" title="드래그해서 순서 변경"><i class="ri-draggable"></i></div>
-							<button type="button" class="mix-inner-remove" data-mix-block-id="${block.id}" data-mix-inner-idx="${idx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>
-							${propsBtn}
+							${_innerBlockActionsHtml(propsHtml, removeHtml)}
 							${innerHtml}
 						</div>`;
 					} else {
@@ -5264,13 +5560,13 @@ function buildColumnBlock(template, block, editable) {
 									innerHtml = buildColumnBlock(innerTemplate, fakeBlock, true);
 								}
 								const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
-								const propsBtn = isListInner
-									? `<button type="button" class="mix-inner-props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
+								const propsHtml = isListInner
+									? `<button type="button" class="mix-inner-props inner-block-btn inner-block-btn--props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
 									: '';
+								const removeHtml = `<button type="button" class="mix-inner-remove pstep-inner-remove inner-block-btn inner-block-btn--remove" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}" data-pstep-inner-idx="${ibIdx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>`;
 								return `<div class="mix-inner-item pstep-inner-item" draggable="true" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}" data-pstep-inner-idx="${ibIdx}"${mbStyle}>
 									<div class="mix-inner-drag-handle" title="드래그해서 순서 변경"><i class="ri-draggable"></i></div>
-									<button type="button" class="mix-inner-remove pstep-inner-remove" data-pstep-block-id="${escapeAttr(block.id)}" data-pstep-idx="${idx}" data-pstep-inner-idx="${ibIdx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>
-									${propsBtn}
+									${_innerBlockActionsHtml(propsHtml, removeHtml)}
 									${innerHtml}
 								</div>`;
 							}).join('');
@@ -5780,7 +6076,7 @@ function bindRenderedEvents() {
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
 	});
-	// 테이블 셀 드래그 병합
+	// 테이블 셀 드래그 선택 + 우클릭 메뉴
 	document.querySelectorAll('table [data-edit-field]').forEach(cell => {
 		cell.addEventListener('mousedown', event => {
 			if (document.body.classList.contains('preview-mode')) return;
@@ -5791,17 +6087,18 @@ function bindRenderedEvents() {
 			if (!state.tableCellDrag) return;
 			updateTableDragRange(cell);
 		});
+		cell.addEventListener('contextmenu', event => openTableContextMenu(cell, event));
 		cell.addEventListener('dragstart', event => event.preventDefault());
 	});
 	if (!_tableCellDragEventsBound) {
 		_tableCellDragEventsBound = true;
 		document.addEventListener('mouseup', finishTableCellDrag);
 		document.addEventListener('mousedown', event => {
-			const layer = document.getElementById('tableMergeConfirmLayer');
-			if (!layer || layer.style.display === 'none') return;
-			if (layer.contains(event.target)) return;
+			const menu = document.getElementById('tableContextMenu');
+			if (!menu || menu.style.display === 'none') return;
+			if (menu.contains(event.target)) return;
 			if (event.target.closest && event.target.closest('table [data-edit-field]')) return;
-			closeTableMergeConfirm(true);
+			closeTableContextMenu(false);
 		});
 	}
 	// 탭 항목 텍스트 인라인 편집
@@ -5985,6 +6282,51 @@ function bindRenderedEvents() {
 			removeMixInnerBlock(btn.dataset.mixBlockId, Number(btn.dataset.mixInnerIdx));
 		});
 	});
+	// 테이블 셀 내부 블록 제거 버튼
+	document.querySelectorAll('.table-cell-inner-remove').forEach(btn => {
+		btn.addEventListener('click', event => {
+			event.stopPropagation();
+			removeTableCellInnerBlock(btn.dataset.blockId, btn.dataset.cellKey);
+		});
+	});
+	// 테이블 셀 블록존 드래그 드롭
+	document.querySelectorAll('.table-cell-block-zone.is-empty[data-cell-block-zone]').forEach(zone => {
+		zone.addEventListener('dragover', event => {
+			const payload = state.dragPayload;
+			if (!payload.startsWith('new-block:') && !payload.startsWith('existing-block:')) return;
+			const blockType = payload.startsWith('new-block:')
+				? payload.replace('new-block:', '')
+				: state.blocks.find(b => b.id === payload.replace('existing-block:', ''))?.type;
+			if (!blockType || !MIX_ALLOWED.has(templateCategories[blockType])) return;
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = payload.startsWith('new-block:') ? 'copy' : 'move';
+			zone.classList.add('is-drag-over');
+		});
+		zone.addEventListener('dragleave', event => {
+			if (!zone.contains(event.relatedTarget)) zone.classList.remove('is-drag-over');
+		});
+		zone.addEventListener('drop', event => {
+			zone.classList.remove('is-drag-over');
+			const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
+			const blockId = zone.dataset.blockId;
+			const cellKey = zone.dataset.cellKey;
+			if (payload.startsWith('new-block:')) {
+				const newType = payload.replace('new-block:', '');
+				if (!MIX_ALLOWED.has(templateCategories[newType])) return;
+				event.preventDefault();
+				event.stopPropagation();
+				addTableCellInnerBlock(blockId, cellKey, newType);
+			} else if (payload.startsWith('existing-block:')) {
+				const srcId = payload.replace('existing-block:', '');
+				const srcBlock = state.blocks.find(b => b.id === srcId);
+				if (!srcBlock || !MIX_ALLOWED.has(templateCategories[srcBlock.type])) return;
+				event.preventDefault();
+				event.stopPropagation();
+				addTableCellInnerBlockFromExisting(blockId, cellKey, srcId);
+			}
+		});
+	});
 	// 혼합 블록 내부 아이템 드래그 재정렬
 	let _mixDragFrom = null;
 
@@ -6040,6 +6382,13 @@ function bindRenderedEvents() {
 		btn.addEventListener('click', event => {
 			event.stopPropagation();
 			openBlockProps(btn.dataset.mixInnerPropsId);
+		});
+	});
+
+	document.querySelectorAll('.table-cell-inner-props').forEach(btn => {
+		btn.addEventListener('click', event => {
+			event.stopPropagation();
+			openBlockProps(btn.dataset.tcellInnerPropsId);
 		});
 	});
 
@@ -7736,7 +8085,7 @@ async function init() {
 	document.getElementById('markupClose').addEventListener('click', closeMarkup);
 	document.getElementById('markupBackdrop').addEventListener('click', closeMarkup);
 	document.addEventListener('keydown', e => {
-		if (e.key === 'Escape') { closeMarkup(); closeTableCellSpanPopover(); closeTableMergeConfirm(true); }
+		if (e.key === 'Escape') { closeMarkup(); closeTableCellSpanPopover(); closeTableContextMenu(false); }
 		if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
 			const active = document.activeElement;
 			if (active?.getAttribute('contenteditable') === 'true') return;

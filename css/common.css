@@ -1819,6 +1819,13 @@ body[data-preview-device="tablet"] .builder-columns.columns-6 {
 	pointer-events: auto;
 }
 
+/* 내부 블록(mix-inner, table-cell) hover 시 외부 컨트롤 숨김 → 겹침 방지 */
+.builder-block:has(.mix-inner-item:hover) .block-controls,
+.builder-block:has(.table-cell-block-zone.has-block:hover) .block-controls {
+	opacity: 0;
+	pointer-events: none;
+}
+
 .block-props-btn {
 	display: inline-flex;
 	align-items: center;
@@ -2938,65 +2945,68 @@ body.preview-mode .mix-slot-placeholder {
 	cursor: grabbing;
 }
 
-/* 내부 블록 제거 버튼 */
-.mix-inner-remove {
+/* ── 내부 블록 액션 버튼 그룹 (mix/table-cell 공통) ── */
+.inner-block-actions {
 	position: absolute;
-	bottom: 8px;
-	right: 8px;
-	z-index: 10;
-	width: 24px;
-	height: 24px;
-	min-height: 24px;
+	bottom: 0;
+	right: 0;
+	top: auto;
+	transform: translateY(100%);
+	z-index: 20;
 	display: flex;
+	flex-direction: row;
 	align-items: center;
-	justify-content: center;
-	background: #e53e3e;
-	color: #fff;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 13px;
+	gap: 1px;
+	padding: 2px;
 	opacity: 0;
 	transition: opacity 0.15s;
-	padding: 0;
-	line-height: 1;
+	background: #333;
+	border: 1px solid #333;
+	border-radius: 5px;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+	pointer-events: auto;
 }
-.mix-inner-item:hover .mix-inner-remove {
+.table-cell-block-zone.has-block:hover .inner-block-actions,
+.mix-inner-item:hover .inner-block-actions,
+.nl-body-block-wrap:hover .inner-block-actions {
 	opacity: 1;
 }
-body.preview-mode .mix-inner-remove,
+body.preview-mode .inner-block-actions,
 body.preview-mode .mix-inner-drag-handle {
 	display: none;
 }
 
-/* 리스트 내부 블록 행 관리 버튼 */
-.mix-inner-props {
-	position: absolute;
-	bottom: 8px;
-	right: 38px;
-	z-index: 10;
-	width: 24px;
-	height: 24px;
-	min-height: 24px;
-	display: flex;
+.inner-block-btn {
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	background: #4a6fa5;
-	color: #fff;
+	width: 20px;
+	height: 20px;
+	min-height: 20px;
 	border: none;
-	border-radius: 4px;
+	background: transparent;
+	border-radius: 3px;
 	cursor: pointer;
-	font-size: 13px;
-	opacity: 0;
-	transition: opacity 0.15s;
+	font-size: 12px;
 	padding: 0;
 	line-height: 1;
+	color: #fff;
+	transition: background 0.1s;
 }
-.mix-inner-item:hover .mix-inner-props {
-	opacity: 1;
+.inner-block-btn:hover {
+	background: rgba(0, 0, 0, 0.15);
 }
-body.preview-mode .mix-inner-props {
-	display: none;
+.inner-block-btn--remove {
+	color: #fff;
+}
+.inner-block-btn--props {
+	color: #fff;
+}
+
+/* 기존 클래스 — 이벤트 바인딩용으로 유지, 위치는 .inner-block-actions가 관리 */
+.mix-inner-remove,
+.mix-inner-props {
+	position: static;
 }
 
 /* 컴포넌트 목록 mix 썸네일 폴백 */
@@ -3822,11 +3832,11 @@ body.preview-mode .list-wrap-placeholder {
 
 .props-table-mini-cell {
 	display: inline-flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	min-width: 0;
-	height: 1.6rem;
-	padding: 0 3px;
+	padding: 2px 1px;
 	border: 0;
 	border-right: 1px solid #edf0f5;
 	background: #fff;
@@ -3835,20 +3845,96 @@ body.preview-mode .list-wrap-placeholder {
 	font-weight: 800;
 	line-height: 1;
 	cursor: default;
+	gap: 2px;
 }
 
 .props-table-mini-cell:last-child {
 	border-right: 0;
 }
 
-button.props-table-mini-cell {
-	cursor: pointer;
-}
-
-.props-table-mini-cell.is-th {
+span.props-table-mini-cell.is-th {
 	background: #c0362c;
 	color: #fff;
 	border-right: 0;
+}
+
+/* tbody td wrapper */
+div.props-table-mini-cell {
+	padding: 2px 1px;
+	gap: 2px;
+}
+
+div.props-table-mini-cell.is-block-zone {
+	background: #fff5f5;
+	border-color: #e53e3e;
+}
+
+.props-mini-cell-tag {
+	font-size: 0.6rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+/* tag toggle btn inside td wrapper */
+.props-mini-cell-tag-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 1.1rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 3px;
+	background: #f8f9fb;
+	color: #555;
+	font-size: 0.55rem;
+	font-weight: 700;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.props-mini-cell-tag-btn:hover {
+	background: #edf0f5;
+}
+
+/* zone toggle btn */
+.props-mini-cell-zone-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 1rem;
+	min-height: auto;
+	border: 1px solid #e2e8f0;
+	border-radius: 3px;
+	background: #f8f9fb;
+	color: #888;
+	font-size: 0.65rem;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.props-mini-cell-zone-btn:hover {
+	background: #fff5f5;
+	border-color: #e53e3e;
+	color: #e53e3e;
+}
+
+.props-mini-cell-zone-btn.is-active {
+	background: #fff5f5;
+	border-color: #e53e3e;
+	color: #e53e3e;
+}
+
+/* th cell button (tfoot, tbody th) */
+button.props-table-mini-cell.is-th {
+	background: #c0362c;
+	color: #fff;
+	border-right: 0;
+	cursor: pointer;
+}
+
+button.props-table-mini-cell.is-th:hover {
+	background: #a82b22;
 }
 
 .props-table-row-control-cell {
@@ -4002,48 +4088,108 @@ body.is-table-cell-dragging {
 	cursor: cell;
 }
 
-.table-merge-confirm-layer {
+.table-context-menu {
 	display: none;
 	position: fixed;
-	z-index: 9998;
-	width: 188px;
-	padding: 10px;
+	z-index: 9999;
+	width: 156px;
+	padding: 6px;
 	border: 1px solid #dfe3ea;
 	border-radius: 8px;
 	background: #fff;
 	box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
 }
 
-.table-merge-confirm-text {
-	margin: 0 0 8px;
-	font-size: 0.65rem;
+.table-context-menu-group {
+	padding-bottom: 6px;
+	margin-bottom: 5px;
+	border-bottom: 1px solid #edf0f5;
+}
+
+.table-context-menu-title {
+	margin: 0;
+	font-size: 0.625rem;
 	font-weight: 700;
-	line-height: 1.35;
-	color: #222;
-	text-align: center;
+	color: #1a202c;
+	padding: 0 2px;
+	margin-bottom: 8px;
 }
 
-.table-merge-confirm-actions {
+.table-context-aligns {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 6px;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 4px;
 }
 
-.table-merge-confirm-btn {
+.table-context-aligns button {
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0;
+}
+
+.table-context-aligns button,
+.table-context-menu-item {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	min-height: 1.55rem;
 	border: 1px solid var(--line);
 	border-radius: 5px;
 	background: #fff;
 	color: #444;
 	font-size: 0.62rem;
-	font-weight: 700;
+	font-weight: 800;
 	cursor: pointer;
 }
 
-.table-merge-confirm-yes {
-	border-color: var(--accent);
-	background: var(--accent);
-	color: #fff;
+.table-context-aligns button:hover,
+.table-context-menu-item:hover {
+	background: #edf0f5;
+	color: #222;
+}
+
+.table-context-menu-item {
+	width: 100%;
+	margin-top: 4px;
+}
+
+.table-context-menu-item:disabled {
+	opacity: 0.38;
+	cursor: not-allowed;
+	background: #f8f9fb;
+	color: #999;
+}
+
+/* ── 테이블 셀 블록존 ─────────────────── */
+.table-cell-block-zone {
+	position: relative;
+	overflow: visible;
+}
+
+.table-cell-block-zone.is-empty {
+	outline: 2px dashed #e53e3e;
+	outline-offset: -2px;
+	min-height: 64px;
+	transition: background 0.15s;
+}
+
+.table-cell-block-zone.is-empty.is-drag-over {
+	background: #fed7d7;
+}
+
+.table-cell-block-zone.has-block {
+	position: relative;
+}
+
+.table-cell-block-zone.has-block > :not(.inner-block-actions) {
+	margin: 0 !important;
+}
+
+/* 기존 클래스 — 이벤트 바인딩용으로 유지, 위치는 .inner-block-actions가 관리 */
+.table-cell-inner-remove,
+.table-cell-inner-props {
+	position: static;
 }
 
 /* ── 테이블 셀 span 팝오버 ─────────────────── */
