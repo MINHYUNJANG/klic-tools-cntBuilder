@@ -756,7 +756,7 @@ body.header-compact .topbar-extra {
 	border-radius: 0;
 	background: transparent;
 	color: #252525;
-	font-size: 0.64rem;
+	font-size: 0.75rem;
 	font-weight: 900;
 	padding: 0;
 	border-bottom: 4px solid transparent;
@@ -970,8 +970,8 @@ body.header-compact .topbar-extra {
 	padding: 0 12px;
 	background: #ececf2;
 	color: #252525;
-	font-size: 0.6rem;
-	font-weight: 900;
+	font-size: 0.7rem;
+	font-weight: 700;
 }
 
 .component-filters [data-template-filter="mix"] {
