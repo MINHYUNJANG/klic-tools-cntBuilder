@@ -3524,15 +3524,32 @@ function renderCustomPanel() {
 }
 
 
-function generateNewsletterHtml() {
+async function generateNewsletterHtml() {
 	const newsletterBlocks = state.blocks.filter(b => b.type.startsWith('newsletter-01__section_'));
 	if (!newsletterBlocks.length) return null;
 
-	const cssLinks = [
-		'<link rel="stylesheet" href="/css/basic.css">',
-		'<link rel="stylesheet" href="/css/common.css">',
-		'<link rel="stylesheet" href="/templates/design_template/newsletter-01/style.css">'
-	].join('\n');
+	const fetchCss = async path => {
+		try { const r = await fetch(path); return r.ok ? await r.text() : ''; }
+		catch (_) { return ''; }
+	};
+
+	const baseCssPaths = [
+		'/css/basic.css',
+		'/css/common.css',
+		'/css/con_com.css',
+		'/css/theme.css',
+		'/templates/design_template/newsletter-01/style.css'
+	];
+	const bodyBlocks = state.blocks.filter(b => b._isNlBodyBlock);
+	const bodyBlockCssPaths = [...new Set(
+		bodyBlocks
+			.map(bb => componentTemplates[bb.type]?.path)
+			.filter(Boolean)
+			.map(p => getTemplateCssPath(p))
+	)];
+	const allCssPaths = [...baseCssPaths, ...bodyBlockCssPaths];
+	const cssTexts = await Promise.all(allCssPaths.map(fetchCss));
+	const inlinedCss = cssTexts.filter(Boolean).join('\n');
 
 	const sections = newsletterBlocks.map(block => {
 		const template = componentTemplates[block.type];
@@ -3611,11 +3628,11 @@ function generateNewsletterHtml() {
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=768">
 <title>가정통신문</title>
-${cssLinks}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+${inlinedCss}
   @page { size: A4 portrait; margin: 20mm 18mm; }
   body {
     font-family: ${nlFontFamily};
@@ -3632,9 +3649,21 @@ ${cssLinks}
     --nl-font-weight: ${nlFontWeight};
   }
   .nl-print-wrapper {
-    max-width: 170mm;
+    max-width: 768px;
     margin: 0 auto;
     padding: 0;
+  }
+  .nl-content-area {
+    --box-inr-padding: 0.75rem 1rem;
+    --margin-default: 0.5rem;
+    --title-size: 1.8rem;
+  }
+  @media print {
+    .nl-content-area {
+      --box-inr-padding: 0.75rem 1rem;
+      --margin-default: 0.5rem;
+      --title-size: 1.8rem;
+    }
   }
 </style>
 </head>
@@ -3648,158 +3677,16 @@ ${sections}
 
 
 async function exportNewsletterDoc() {
-	const hasNl = state.blocks.some(b => b.type.startsWith('newsletter-01__section_'));
-	if (!hasNl) {
+	const html = await generateNewsletterHtml();
+	if (!html) {
 		alert('캔버스에 가정통신문 블록이 없습니다.\n먼저 [디자인 커스텀] 탭에서 가정통신문 템플릿을 추가하세요.');
 		return;
 	}
-
-	// CSS fetch 후 인라인 포함
-	const fetchCss = async path => {
-		try { const r = await fetch(path); return r.ok ? await r.text() : ''; }
-		catch (_) { return ''; }
-	};
-	const [conComCss, themeCss] = await Promise.all([
-		fetchCss('/css/con_com.css'),
-		fetchCss('/css/theme.css')
-	]);
-
-	// ── 데이터 수집 (각 섹션이 별도 .nl-template 요소이므로 document에서 직접 조회) ──
-	const s1      = state.blocks.find(b => b.type === 'newsletter-01__section_1');
-	const logoSrc = s1?.nlLogoSrc || '';
-
-	const schoolName   = document.querySelector('.nl-school-name')?.textContent?.trim() || '○○학교';
-	const headerInfoEl = document.querySelector('.nl-header-info');
-	const contactOn    = headerInfoEl && headerInfoEl.style.display !== 'none';
-	const dept         = contactOn ? (document.querySelector('.nl-dept')?.textContent?.trim()  || '') : '';
-	const phone        = contactOn ? (document.querySelector('.nl-phone')?.textContent?.trim() || '') : '';
-	const subjectHtml  = document.querySelector('.nl-subject-text')?.innerHTML || '';
-	const dateHtml     = document.querySelector('.nl-footer-date')?.innerHTML  || '';
-	const signHtml     = document.querySelector('.nl-footer-sign')?.innerHTML  || '';
-
-	// 본문 정리
-	let bodyHtml = '';
-	const ca = document.querySelector('.nl-content-area');
-	if (ca) {
-		const cl = ca.cloneNode(true);
-		cl.querySelectorAll('.nl-body-block-controls').forEach(e => e.remove());
-		cl.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
-		cl.querySelectorAll('*').forEach(e => {
-			Array.from(e.attributes).filter(a => a.name.startsWith('data-')).forEach(a => e.removeAttribute(a.name));
-		});
-		cl.querySelectorAll('.nl-body-block-wrap').forEach(w => {
-			const f = document.createDocumentFragment();
-			while (w.firstChild) f.appendChild(w.firstChild);
-			w.parentNode.replaceChild(f, w);
-		});
-		bodyHtml = cl.innerHTML;
-	}
-
-	// ── 폰트 ──
-	const ns         = state.newsletterStyle || {};
-	const fontSize   = ns.fontSize   ? `${ns.fontSize}pt` : '10pt';
-	const lineHeight = ns.lineHeight || '1.9';
-	const fontWeight = ns.fontWeight || 'normal';
-	const FF         = "'맑은 고딕','Malgun Gothic',sans-serif";
-
-	const logoHtml = logoSrc
-		? `<img src="${logoSrc}" alt="" style="max-height:40px;max-width:100px;display:block;">`
-		: '&nbsp;';
-
-	const contactRow = (dept || phone) ? `
-  <tr>
-    <td colspan="3" align="right" bgcolor="#1e3a5f"
-        style="padding:5px 16px;background-color:#1e3a5f;">
-      <font face="맑은 고딕" size="2" color="#dee5ef">${escapeHtml(dept)}${dept && phone ? '&nbsp;&nbsp;|&nbsp;&nbsp;' : ''}${escapeHtml(phone)}</font>
-    </td>
-  </tr>` : '';
-
-	// ── HTML 생성: 중첩 없이 섹션별 독립 테이블 ──
-	const docHtml = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<title>가정통신문</title>
-<style>
-@page { size:210mm 297mm; margin:20mm 18mm; }
-body  { font-family:${FF}; font-size:10pt; margin:0; padding:0; background:#fff; }
-p     { margin:0 0 4px 0; }
-${conComCss}
-${themeCss}
-</style>
-</head>
-<body>
-
-<!-- ① 네이비 상단 줄 -->
-<table width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#1e3a5f">
-<tr><td bgcolor="#1e3a5f" height="5">&nbsp;</td></tr>
-</table>
-
-<!-- ② 헤더: 로고 | 가정통신문 | 학교명 + 연락처 행 -->
-<table width="100%" cellspacing="0" cellpadding="0" border="1" bordercolor="#c8cdd6" bgcolor="#ffffff">
-  <tr>
-    <td width="22%" align="left" valign="middle" bgcolor="#ffffff"
-        style="padding:12px 14px;vertical-align:middle;">${logoHtml}</td>
-    <td align="center" valign="middle" bgcolor="#ffffff"
-        style="padding:12px 8px;vertical-align:middle;text-align:center;">
-      <font face="맑은 고딕" size="7" color="#1a1a1a">
-        <b>가&nbsp;&nbsp;정&nbsp;&nbsp;통&nbsp;&nbsp;신&nbsp;&nbsp;문</b>
-      </font>
-    </td>
-    <td width="22%" align="right" valign="middle" bgcolor="#ffffff"
-        style="padding:12px 14px;vertical-align:middle;text-align:right;">
-      <font face="맑은 고딕" size="3" color="#2c3e50"><b>${escapeHtml(schoolName)}</b></font>
-    </td>
-  </tr>
-  ${contactRow}
-</table>
-
-<!-- ③ 제목 -->
-<table width="100%" cellspacing="0" cellpadding="0" border="1" bordercolor="#c8cdd6">
-  <tr>
-    <td width="90" align="center" valign="middle" bgcolor="#1e3a5f"
-        style="padding:9px 10px;vertical-align:middle;text-align:center;white-space:nowrap;">
-      <font face="맑은 고딕" size="2" color="#ffffff"><b>제&nbsp;&nbsp;&nbsp;&nbsp;목</b></font>
-    </td>
-    <td valign="middle" bgcolor="#ffffff"
-        style="padding:9px 16px;vertical-align:middle;">
-      <font face="맑은 고딕" size="3"><b>${subjectHtml}</b></font>
-    </td>
-  </tr>
-</table>
-
-<!-- ④ 본문 -->
-<table width="100%" cellspacing="0" cellpadding="0" border="1" bordercolor="#c8cdd6" bgcolor="#ffffff">
-  <tr height="820">
-    <td valign="top" bgcolor="#ffffff" height="820"
-        style="padding:20px;font-size:${fontSize};line-height:${lineHeight};font-weight:${fontWeight};vertical-align:top;min-height:820px;height:820px;">
-      <font face="맑은 고딕" size="3">${bodyHtml}</font>
-    </td>
-  </tr>
-</table>
-
-<!-- ⑤ 푸터 -->
-<table width="100%" cellspacing="0" cellpadding="0" border="1" bordercolor="#c8cdd6" bgcolor="#fafbfc">
-  <tr>
-    <td align="center" bgcolor="#fafbfc" style="padding:18px 16px 22px;text-align:center;">
-      <p style="margin:0 0 8px 0;">
-        <font face="맑은 고딕" size="3" color="#2c3e50"><b>${dateHtml}</b></font>
-      </p>
-      <p style="margin:0;">
-        <font face="맑은 고딕" size="3" color="#1a1a1a"><b>${signHtml}</b></font>
-      </p>
-    </td>
-  </tr>
-</table>
-
-</body>
-</html>`;
-
-	const blob = new Blob(['﻿' + docHtml], { type: 'text/html;charset=utf-8' });
+	const blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' });
 	const url  = URL.createObjectURL(blob);
 	const a    = document.createElement('a');
 	a.href     = url;
-	a.download = '가정통신문.html';
+	a.download = '가정통신문.doc';
 	document.body.appendChild(a);
 	a.click();
 	document.body.removeChild(a);
@@ -3808,8 +3695,8 @@ ${themeCss}
 
 
 
-function exportNewsletterDownload() {
-	const html = generateNewsletterHtml();
+async function exportNewsletterDownload() {
+	const html = await generateNewsletterHtml();
 	if (!html) {
 		alert('캔버스에 가정통신문 블록이 없습니다.\n먼저 [디자인 커스텀] 탭에서 가정통신문 템플릿을 추가하세요.');
 		return;
