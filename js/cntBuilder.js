@@ -1964,6 +1964,26 @@ function openBlockProps(blockId) {
 		}
 	}
 
+	// 가정통신문 푸터 속성 패널
+	const nlFooterSection = document.getElementById('propsNewsletterFooterSection');
+	if (nlFooterSection) {
+		const isNlFooter = block.type === 'newsletter-01__section_4';
+		nlFooterSection.style.display = isNlFooter ? '' : 'none';
+		if (isNlFooter) {
+			const item = block.items[0] || {};
+			const yearInput = document.getElementById('propNlYear');
+			const monthInput = document.getElementById('propNlMonth');
+			const dayInput = document.getElementById('propNlDay');
+			const schoolInput = document.getElementById('propNlFooterSchool');
+			const stampSel = document.getElementById('propNlStamp');
+			if (yearInput) yearInput.value = item.nlYear || '';
+			if (monthInput) monthInput.value = item.nlMonth || '';
+			if (dayInput) dayInput.value = item.nlDay || '';
+			if (schoolInput) schoolInput.value = item.nlFooterSchool || '';
+			if (stampSel) stampSel.value = item.nlStamp || 'omit';
+		}
+	}
+
 	// 가정통신문 폰트 속성 패널 (section 블록)
 	const nlFontSection = document.getElementById('propsNewsletterFontSection');
 	if (nlFontSection) {
@@ -2884,6 +2904,34 @@ function initBlockPropsPanel() {
 		render();
 	});
 
+
+	// 가정통신문 푸터: 적용 버튼
+	document.getElementById('propsApplyNlFooter')?.addEventListener('click', () => {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block || block.type !== 'newsletter-01__section_4') return;
+		const year = document.getElementById('propNlYear')?.value.trim() || '';
+		const month = document.getElementById('propNlMonth')?.value.trim() || '';
+		const day = document.getElementById('propNlDay')?.value.trim() || '';
+		const school = document.getElementById('propNlFooterSchool')?.value.trim() || '';
+		const stamp = document.getElementById('propNlStamp')?.value || 'omit';
+		pushHistory();
+		if (!block.items[0]) block.items[0] = {};
+		block.items[0].nlYear = year;
+		block.items[0].nlMonth = month;
+		block.items[0].nlDay = day;
+		block.items[0].nlFooterSchool = school;
+		block.items[0].nlStamp = stamp;
+		const yr = year || '20';
+		const mo = month || '';
+		const dy = day || '';
+		const dateParts = [yr + '&nbsp;년', mo ? mo + '&nbsp;월' : '&nbsp;&nbsp;&nbsp;&nbsp;월', dy ? dy + '&nbsp;일' : '&nbsp;&nbsp;&nbsp;&nbsp;일'];
+		block.items[0].date = dateParts.join('&nbsp;&nbsp;&nbsp;');
+		const schoolName = school || '○○학교';
+		const stampText = stamp === 'use' ? '(직인)' : '(직인 생략)';
+		block.items[0].principal = schoolName + '장&nbsp;' + stampText;
+		render();
+	});
 
 	// 가정통신문 폰트: 적용 버튼
 	document.getElementById('propsApplyNlFont')?.addEventListener('click', () => {
@@ -7419,11 +7467,7 @@ async function init() {
 		await Promise.all([loadTemplates(), loadIconCategories()]);
 		renderComponentList();
 		if (state.sidebarTab === 'custom') renderCustomPanel();
-		if (state.blocks.length === 0) {
-			const block = createBlock('title-01');
-			state.blocks.push(block);
-			render();
-		}
+		render();
 	} catch (error) {
 		console.error(error);
 		showTemplateLoadError(error);
@@ -7624,6 +7668,14 @@ function initGuidedTour() {
 
 	function showStep(index) {
 		const step = TOUR_STEPS[index];
+
+		// step 2 (캔버스에 배치) 진입 시 캔버스가 비어있으면 타이틀 블록 추가
+		if (index === 1 && state.blocks.length === 0) {
+			const block = createBlock('title-01');
+			state.blocks.push(block);
+			render();
+		}
+
 		const targetEl = document.querySelector(step.target);
 
 		clearSpotlight();
