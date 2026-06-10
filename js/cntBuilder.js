@@ -1389,7 +1389,7 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 				if (isListInner && fakeBlock.items[0]?.rows) {
 					innerEl = renderListDynamically(fakeBlock, fakeBlock.items[0], 0, innerTemplate.element, false);
 				} else {
-					innerEl = buildColumnBlock(innerTemplate, fakeBlock, false);
+					innerEl = buildColumnBlock(innerTemplate, fakeBlock, false, editable);
 				}
 				if (typeof innerEl === 'string') { zoneEl.innerHTML += innerEl; }
 				else { zoneEl.appendChild(innerEl); }
@@ -5287,7 +5287,7 @@ function renderRepeatedColumns(block) {
 	return buildColumnBlock(template, block, true);
 }
 
-function buildColumnBlock(template, block, editable) {
+function buildColumnBlock(template, block, editable, innerTableEditable = false) {
 	const outer = template.element.cloneNode(true);
 	Array.from(outer.attributes).forEach(attr => {
 		if (attr.name.startsWith('data-template-') || attr.name.startsWith('data-style-')) {
@@ -5316,7 +5316,7 @@ function buildColumnBlock(template, block, editable) {
 			if (addRowWrapEl.contains(field)) return;
 			const fieldName = field.dataset.editField;
 			setFieldContent(field, (block.items[0] || {})[fieldName] || '');
-			if (editable) {
+			if (editable || innerTableEditable) {
 				field.dataset.blockId = block.id;
 				field.dataset.columnIndex = '0';
 			} else {
@@ -5330,21 +5330,21 @@ function buildColumnBlock(template, block, editable) {
 			el.querySelectorAll('[data-edit-field]').forEach(field => {
 				const fieldName = field.dataset.editField;
 				setFieldContent(field, item[fieldName] || '');
-				if (editable) {
+				if (editable || innerTableEditable) {
 					field.dataset.blockId = block.id;
 					field.dataset.columnIndex = String(idx);
 				} else {
 					field.removeAttribute('data-edit-field');
 				}
 			});
-			if (!editable) stripEditorAttributes(el);
+			if (!editable && !innerTableEditable) stripEditorAttributes(el);
 			return elementToHtml(el);
 		}).join('');
 	} else {
 		outer.querySelectorAll('[data-edit-field]').forEach(field => {
 			const fieldName = field.dataset.editField;
 			setFieldContent(field, (block.items[0] || {})[fieldName] || '');
-			if (editable) {
+			if (editable || innerTableEditable) {
 				field.dataset.blockId = block.id;
 				field.dataset.columnIndex = '0';
 			} else {
@@ -6141,8 +6141,8 @@ function bindRenderedEvents() {
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
 	});
-	// 테이블 셀 드래그 선택 + 우클릭 메뉴
-	document.querySelectorAll('table [data-edit-field]').forEach(cell => {
+	// 테이블 셀 드래그 선택 + 우클릭 메뉴 (data-table-section이 있는 실제 셀만 대상)
+	document.querySelectorAll('table [data-table-section]').forEach(cell => {
 		cell.addEventListener('mousedown', event => {
 			if (document.body.classList.contains('preview-mode')) return;
 			if (event.button !== 0) return;
@@ -6704,6 +6704,7 @@ function startTextEdit(event) {
 	if (document.body.classList.contains('preview-mode')) return;
 	const field = event.currentTarget;
 	if (field.dataset.editField === 'icon') return;
+	if (field.dataset.cellBlockZone) return;
 	event.stopPropagation();
 	field._editOriginalHtml = field.innerHTML;
 	field.setAttribute('contenteditable', 'true');
@@ -6793,11 +6794,13 @@ function finishTextEdit(event) {
 	field.removeAttribute('contenteditable');
 	if (field._editCancelled) return;
 	const columnIndex = Number(field.dataset.columnIndex);
-	// 혼합 내부 블록 / title-list list-wrap 참조 여부 확인
+	// 혼합 내부 블록 / title-list list-wrap / 테이블 셀 내부 블록 참조 여부 확인
 	const mixRef = resolveMixInnerRef(field.dataset.blockId);
 	const listRef = !mixRef ? resolveListInnerRef(field.dataset.blockId) : null;
+	const tcellRef = !mixRef && !listRef ? resolveTableCellInnerRef(field.dataset.blockId) : null;
 	const targetItems = mixRef ? mixRef.innerBlock.items
 		: listRef ? listRef.listBlock.items
+		: tcellRef ? tcellRef.innerBlockData.items
 		: state.blocks.find(b => b.id === field.dataset.blockId)?.items;
 	if (!targetItems || !targetItems[columnIndex]) return;
 	const html = field.innerHTML;
