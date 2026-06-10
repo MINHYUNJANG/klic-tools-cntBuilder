@@ -64,8 +64,7 @@ const state = {
 	overlays: [],
 	customDecorations: [],
 	undoStack: [],
-	previewDevice: 'pc',
-	newsletterStyle: { fontFamily: '', fontSize: '', lineHeight: '', fontWeight: '', blockGap: '' }
+	previewDevice: 'pc'
 };
 
 // 꾸밈 스튜디오 필터 목록
@@ -2195,26 +2194,6 @@ function openBlockProps(blockId) {
 		}
 	}
 
-	// 가정통신문 폰트 속성 패널 (section 블록)
-	const nlFontSection = document.getElementById('propsNewsletterFontSection');
-	if (nlFontSection) {
-		const isNlBlock = block.type.startsWith('newsletter-01__section_');
-		nlFontSection.style.display = isNlBlock ? '' : 'none';
-		if (isNlBlock) {
-			const ns = state.newsletterStyle;
-			const fontFamilySel = document.getElementById('propNlFontFamily');
-			const fontSizeInput = document.getElementById('propNlFontSize');
-			const lineHeightSel = document.getElementById('propNlLineHeight');
-			const fontWeightSel = document.getElementById('propNlFontWeight');
-			if (fontFamilySel) fontFamilySel.value = ns.fontFamily || '';
-			if (fontSizeInput) fontSizeInput.value = ns.fontSize || '';
-			if (lineHeightSel) lineHeightSel.value = ns.lineHeight || '';
-			if (fontWeightSel) fontWeightSel.value = ns.fontWeight || '';
-			const blockGapInput = document.getElementById('propNlBlockGap');
-			if (blockGapInput) blockGapInput.value = ns.blockGap || '';
-		}
-	}
-
 	panel.classList.add('is-open');
 }
 
@@ -3187,34 +3166,6 @@ function initBlockPropsPanel() {
 		render();
 	});
 
-	// 가정통신문 폰트: 적용 버튼
-	document.getElementById('propsApplyNlFont')?.addEventListener('click', () => {
-		const fontFamily = document.getElementById('propNlFontFamily')?.value || '';
-		const fontSize = document.getElementById('propNlFontSize')?.value || '';
-		const lineHeight = document.getElementById('propNlLineHeight')?.value || '';
-		const fontWeight = document.getElementById('propNlFontWeight')?.value || '';
-		const blockGap = document.getElementById('propNlBlockGap')?.value || '';
-		state.newsletterStyle = { fontFamily, fontSize, lineHeight, fontWeight, blockGap };
-		applyNewsletterStyles();
-	});
-}
-
-function applyNewsletterStyles() {
-	const ns = state.newsletterStyle;
-	// 폰트 패밀리: 전체 템플릿에 적용
-	document.querySelectorAll('.nl-template').forEach(el => {
-		if (ns.fontFamily) el.style.setProperty('--nl-font-family', ns.fontFamily);
-		else el.style.removeProperty('--nl-font-family');
-	});
-	// 폰트 크기/굵기/줄간격/블록간격: 본문 영역에만 적용
-	document.querySelectorAll('.nl-content-area').forEach(el => {
-		if (ns.fontSize) el.style.setProperty('--nl-font-size', `${ns.fontSize}px`);
-		else el.style.removeProperty('--nl-font-size');
-		if (ns.lineHeight) el.style.setProperty('--nl-line-height', ns.lineHeight);
-		else el.style.removeProperty('--nl-line-height');
-		if (ns.fontWeight) el.style.setProperty('--nl-font-weight', ns.fontWeight);
-		else el.style.removeProperty('--nl-font-weight');
-	});
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
@@ -3820,7 +3771,7 @@ async function generateNewsletterHtml() {
 						wrapper.className = 'nl-block-insert';
 						const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 							? bb.marginBottom
-							: (parseInt(state.newsletterStyle.blockGap) || 12);
+							: (12);
 						wrapper.style.marginBottom = gapPx + 'px';
 						if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
 						if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
@@ -3835,13 +3786,6 @@ async function generateNewsletterHtml() {
 		return sectionHtml;
 	}).join('\n');
 
-	const ns = state.newsletterStyle;
-	const nlFontFamily = ns.fontFamily || "'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif";
-	const nlFontSize = ns.fontSize ? `${ns.fontSize}px` : '15px';
-	const nlLineHeight = ns.lineHeight || '1.9';
-	const nlFontWeight = ns.fontWeight || 'normal';
-	const nlBlockGap = ns.blockGap ? `${ns.blockGap}px` : '12px';
-
 	return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3853,18 +3797,10 @@ async function generateNewsletterHtml() {
 ${inlinedCss}
   @page { size: A4 portrait; margin: 20mm 18mm; }
   body {
-    font-family: ${nlFontFamily};
+    font-family: 'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
     background: #fff;
     margin: 0;
     padding: 0;
-  }
-  .nl-template {
-    --nl-font-family: ${nlFontFamily};
-  }
-  .nl-content-area {
-    --nl-font-size: ${nlFontSize};
-    --nl-line-height: ${nlLineHeight};
-    --nl-font-weight: ${nlFontWeight};
   }
   .nl-print-wrapper {
     max-width: 768px;
@@ -4607,7 +4543,6 @@ function render() {
 		: '<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>';
 	bindRenderedEvents();
 	applyAllTemplateStyles();
-	applyNewsletterStyles();
 	syncCanvasGuideSize();
 	updateMarkup();
 	renderRecommendationPanel();
@@ -4967,7 +4902,7 @@ function renderRepeatedColumns(block) {
 							wrapper.dataset.nlBodyBlockId = bb.id;
 							const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 								? bb.marginBottom
-								: (parseInt(state.newsletterStyle.blockGap) || 12);
+								: (12);
 							if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 							wrapper.style.marginBottom = gapPx + 'px';
 							if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
@@ -7043,7 +6978,7 @@ function _generateBlocksMarkup() {
 								const wrapper = document.createElement('div');
 								wrapper.className = 'nl-block-insert nl-body-block-wrap';
 								const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
-									? bb.marginBottom : (parseInt(state.newsletterStyle.blockGap) || 12);
+									? bb.marginBottom : (12);
 								if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 								wrapper.style.marginBottom = gapPx + 'px';
 								if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
