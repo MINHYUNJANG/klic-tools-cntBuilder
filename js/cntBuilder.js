@@ -2094,7 +2094,7 @@ function initNlInlineToolbar() {
 
 	function isInNlContent(node) {
 		const el = node?.nodeType === 3 ? node.parentElement : node;
-		return !!el?.closest('.nl-content-area');
+		return !!el?.closest('.nl-content-area, [contenteditable="true"]');
 	}
 
 	document.addEventListener('mouseup', e => {
@@ -2114,7 +2114,7 @@ function initNlInlineToolbar() {
 	});
 
 	document.addEventListener('mousedown', e => {
-		if (!toolbar.contains(e.target) && !e.target.closest('.nl-content-area')) {
+		if (!toolbar.contains(e.target) && !e.target.closest('.nl-content-area, [contenteditable="true"]')) {
 			hideToolbar();
 		}
 	});
