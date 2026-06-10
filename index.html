@@ -197,7 +197,7 @@
 		</div>
 		<div class="block-props-body">
 			<div class="props-section">
-				<p class="props-section-label" data-help="블록의 가로 너비 비율, 다음 블록과의 하단 간격, 가로 정렬 방향을 조정합니다. 너비를 50% 이하로 좁히면 여러 블록을 한 줄에 나란히 배치할 수 있습니다.">블록 설정</p>
+				<p class="props-section-label" data-help="블록의 가로 너비 비율, 상하좌우 외부 간격, 가로 정렬 방향을 조정합니다. 너비를 50% 이하로 좁히면 여러 블록을 한 줄에 나란히 배치할 수 있습니다.">블록 설정</p>
 				<div class="props-card">
 					<div class="props-row">
 						<span class="props-label">너비</span>
@@ -212,8 +212,20 @@
 						</select>
 					</div>
 					<div class="props-row">
+						<span class="props-label">상단 간격</span>
+						<input type="number" class="props-input" id="propMarginTop" min="0" max="200" step="1" placeholder="0">
+					</div>
+					<div class="props-row">
 						<span class="props-label">하단 간격</span>
 						<input type="number" class="props-input" id="propMarginBottom" min="0" max="200" step="1" placeholder="10">
+					</div>
+					<div class="props-row">
+						<span class="props-label">좌측 간격</span>
+						<input type="number" class="props-input" id="propMarginLeft" min="0" max="200" step="1" placeholder="0">
+					</div>
+					<div class="props-row">
+						<span class="props-label">우측 간격</span>
+						<input type="number" class="props-input" id="propMarginRight" min="0" max="200" step="1" placeholder="0">
 					</div>
 					<div class="props-row props-row--last">
 						<span class="props-label">정렬</span>
