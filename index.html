@@ -1,34 +1,65 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>KLIC TOOLs - 공통서브 빌더</title>
-	<link rel="stylesheet" href="css/fonts/Montserrat/fonts.css" media="all">
-	<link rel="stylesheet" href="css/fonts/Pretendard/fonts.css" media="all">
-	<link rel="stylesheet" href="css/fonts/RemixIcon_Fonts_v4.7.0/remixicon.css" media="all">
-	<link rel="stylesheet" href="css/basic.css" media="all">
-	<link rel="stylesheet" href="css/common.css" media="all">
-	<link rel="stylesheet" href="css/contents_common.css" media="all">
+	<title>KLIC TOOLs - 콘텐츠 빌더</title>
+	<link rel="stylesheet" href="/css/fonts/Montserrat/fonts.css" media="all">
+	<link rel="stylesheet" href="/css/fonts/Pretendard/fonts.css" media="all">
+	<link rel="stylesheet" href="/css/fonts/RemixIcon_Fonts_v4.7.0/remixicon.css" media="all">
+	<link rel="stylesheet" href="/css/basic.css" media="all">
+	<link rel="stylesheet" href="/css/common.css" media="all">
+	<link rel="stylesheet" href="/css/theme.css" media="all">
+	<link rel="stylesheet" href="/css/con_com.css" media="all">
+	<link rel="stylesheet" href="/css/canvas.css" media="all">
+	<link rel="stylesheet" href="/css/cntBuilder_common.css" media="all">
 </head>
-<body class="basic-builder-page contents-builder-page">
+<body class="cntBuilder-page">
 	<div class="app-shell">
 		<div id="headerSentinel" class="header-sentinel"></div>
 		<header class="topbar">
 			<div class="topbar-brand">
 				<span class="topbar-logo" aria-hidden="true"></span>
-				<a class="topbar-title-link" href="/" aria-label="공통서브 빌더 홈">
-					<p class="eyebrow">Common Sub Builder</p>
+				<a class="topbar-title-link" href="./" aria-label="콘텐츠 빌더 홈">
+					<p class="eyebrow">Grid Builder</p>
 					<div class="title-row">
 						<strong>KLIC TOOLs</strong>
 						<span aria-hidden="true"></span>
-						<h1>공통서브 빌더</h1>
+						<h1>콘텐츠 빌더</h1>
 					</div>
 				</a>
+			</div>
+			<div class="topbar-extra" id="topbarExtra">
+				<div class="theme-switcher" id="themeSwitcher" aria-label="테마 선택">
+					<span class="theme-switcher-label">테마</span>
+					<div class="theme-swatches" role="radiogroup" aria-label="색상 테마">
+						<button type="button" class="theme-swatch" data-theme="purple" title="퍼플" aria-label="퍼플 테마"></button>
+						<button type="button" class="theme-swatch" data-theme="blue" title="블루" aria-label="블루 테마"></button>
+						<button type="button" class="theme-swatch" data-theme="green" title="그린" aria-label="그린 테마"></button>
+						<button type="button" class="theme-swatch" data-theme="navy" title="네이비" aria-label="네이비 테마"></button>
+						<button type="button" class="theme-swatch" data-theme="mint" title="민트" aria-label="민트 테마"></button>
+						<button type="button" class="theme-swatch" data-theme="orange" title="오렌지" aria-label="오렌지 테마"></button>
+					</div>
+				</div>
 			</div>
 			<div class="topbar-actions">
 				<span id="layoutStatus">0개 블록</span>
 				<span class="topbar-action-divider" aria-hidden="true"></span>
+				<div class="device-switcher" id="deviceSwitcher" aria-label="반응형 미리보기">
+					<button type="button" class="device-btn is-active" data-device="pc" title="PC (1024px 이상)">
+						<i class="ri-computer-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="device-btn" data-device="tablet" title="태블릿 (768–1023px)">
+						<i class="ri-tablet-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="device-btn" data-device="mobile" title="모바일 (380–767px)">
+						<i class="ri-cellphone-line" aria-hidden="true"></i>
+					</button>
+				</div>
+				<button type="button" class="ghost-button" id="clearCanvas">
+					<i class="ri-refresh-line" aria-hidden="true"></i>
+					캔버스 초기화
+				</button>
 				<button type="button" class="ghost-button markup-toggle" id="markupToggle" aria-expanded="false" aria-controls="markupPanel">
 					<i class="ri-code-s-slash-line" aria-hidden="true"></i>
 					마크업 보기
@@ -36,6 +67,20 @@
 				<button type="button" class="preview-button" id="previewToggle">
 					<i class="ri-eye-line" aria-hidden="true"></i>
 					미리보기
+				</button>
+				<button type="button" class="ghost-button" id="helpModeToggle" aria-pressed="false">
+					도움말
+					<i class="ri-question-line" aria-hidden="true"></i>
+				</button>
+			</div>
+			<div class="topbar-preview-actions">
+				<button type="button" class="primary-button" id="savePreviewImage">
+					<i class="ri-image-line" aria-hidden="true"></i>
+					이미지 저장
+				</button>
+				<button type="button" class="ghost-button" id="previewMarkupOpen">
+					<i class="ri-code-s-slash-line" aria-hidden="true"></i>
+					마크업 보기
 				</button>
 			</div>
 			<button type="button" class="preview-return-button" id="previewReturn">
@@ -45,59 +90,572 @@
 		</header>
 
 		<main class="builder" id="builderMain">
-			<aside class="sidebar" aria-label="콘텐츠 블록 도구">
+			<aside class="sidebar" aria-label="디자인 블록 도구" data-help-tip="블록을 선택한 뒤 오른쪽 캔버스 영역으로 드래그하여 배치하세요">
+				<aside class="deco-studio-drawer" id="decoStudioDrawer" aria-label="꾸밈 스튜디오" hidden>
+					<div class="deco-studio-head">
+						<strong>꾸밈 스튜디오</strong>
+						<button type="button" class="ghost-button deco-studio-close" id="decoStudioClose" aria-label="꾸밈 스튜디오 닫기">
+							<i class="ri-close-line" aria-hidden="true"></i>
+						</button>
+					</div>
+					<div class="sidebar-tab-panel" id="panelDecoration">
+						<div class="filter-scroll-shell">
+							<div class="deco-filters" id="decoFilters"></div>
+						</div>
+						<div class="component-list" id="decorationPanel"></div>
+						<div class="deco-upload-area" id="decoUploadArea"></div>
+					</div>
+				</aside>
 				<section class="tool-section">
-					<div class="sidebar-tabs sidebar-tabs--two">
-						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="templates">디자인 템플릿</button>
+					<!-- 메인 탭 -->
+					<div class="sidebar-tabs">
+						<button type="button" class="sidebar-tab-btn" data-sidebar-tab="custom">디자인 커스텀</button>
 						<button type="button" class="sidebar-tab-btn is-active" data-sidebar-tab="blocks">디자인 블록</button>
 					</div>
 
-					<div class="sidebar-tab-panel is-hidden sidebar-ready-panel" id="panelTemplates">
-						<p class="template-empty">준비중입니다.</p>
+					<!-- 디자인 블록 패널 -->
+
+					<div class="sidebar-tab-panel is-hidden" id="panelCustom">
+						<div class="component-list" id="customTemplateList" aria-label="디자인 커스텀 템플릿">
+							<p class="template-loading">
+								<span class="template-loading-spinner" aria-hidden="true"></span>
+								템플릿을 불러오는 중입니다.
+							</p>
+						</div>
+						<div class="custom-export-section" id="customExportSection" style="display:none">
+							<p class="custom-export-title">가정통신문 내보내기</p>
+							<button type="button" class="ghost-button custom-export-btn" id="newsletterDocDownloadBtn">
+								<i class="ri-file-word-line" aria-hidden="true"></i>
+								한글 문서 다운로드
+							</button>
+							<button type="button" class="ghost-button custom-export-btn" id="newsletterDownloadBtn">
+								<i class="ri-download-line" aria-hidden="true"></i>
+								HTML 다운로드
+							</button>
+							<p class="custom-export-notice">다운로드한 .html 파일을 한글에서 열고 HWP로 저장하세요.</p>
+						</div>
 					</div>
 
 					<div class="sidebar-tab-panel" id="panelBlocks">
 						<div class="filter-scroll-shell">
-							<div class="component-filters" aria-label="콘텐츠 블록 필터">
+							<div class="component-filters" aria-label="디자인 블록 필터">
 								<button type="button" class="is-active" data-template-filter="all">전체</button>
 								<button type="button" data-template-filter="title">타이틀</button>
-								<button type="button" data-template-filter="bullet">블릿</button>
+								<button type="button" data-template-filter="text">텍스트</button>
 								<button type="button" data-template-filter="list">리스트</button>
-								<button type="button" data-template-filter="table">테이블</button>
 								<button type="button" data-template-filter="box">박스</button>
 								<button type="button" data-template-filter="tab">탭</button>
+								<button type="button" data-template-filter="table">테이블</button>
+								<button type="button" data-template-filter="process">절차</button>
+								<button type="button" data-template-filter="accordion">아코디언</button>
 								<button type="button" data-template-filter="button">버튼</button>
-								<button type="button" data-template-filter="wip">준비중 디자인</button>
-								<button type="button" data-template-filter="process">절차 디자인</button>
-								<button type="button" data-template-filter="etc">기타</button>
 							</div>
 						</div>
-						<div class="component-list is-empty-state" id="componentList" aria-label="드래그 가능한 콘텐츠 블록">
-							<p class="template-empty">준비중입니다.</p>
+						<div class="component-list" id="componentList" aria-label="드래그 가능한 디자인 블록">
+							<p class="template-loading">
+								<span class="template-loading-spinner" aria-hidden="true"></span>
+								템플릿을 불러오는 중입니다.
+							</p>
 						</div>
 					</div>
+
 				</section>
 			</aside>
 
-			<section class="workspace" aria-label="콘텐츠 작업 영역">
+			<section class="workspace" aria-label="서브콘텐츠 작업 영역" data-help-tip="좌측 디자인 블록을 이 캔버스 영역으로 드래그하면 콘텐츠가 배치됩니다">
+				<div class="canvas-quick-actions" aria-label="캔버스 보조 도구">
+					<button type="button" class="canvas-tool-fab deco-fab" id="decoStudioOpen" aria-label="꾸밈 스튜디오 열기" hidden>
+						<i class="ri-sparkling-2-line" aria-hidden="true"></i>
+					</button>
+					<button type="button" class="canvas-tool-fab recommend-fab" id="recommendPanelOpen" aria-label="추천디자인 열기" hidden>
+						<i class="ri-magic-line" aria-hidden="true"></i>
+					</button>
+				</div>
 				<div class="canvas-wrapper" id="canvasWrapper">
 					<div class="canvas-guide" aria-hidden="true"></div>
-					<div class="canvas-grid is-empty" id="canvasGrid" aria-label="콘텐츠 블록 배열 영역">
-						<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>
-					</div>
+					<div class="canvas-grid" id="canvasGrid" aria-label="디자인 블록 배열 영역"></div>
 					<div class="overlay-layer" id="overlayLayer" aria-hidden="true"></div>
 				</div>
 			</section>
+
+
 		</main>
+
 	</div>
+
+	<aside class="block-props-panel" id="blockPropsPanel" aria-label="블록 속성">
+		<div class="block-props-head">
+			<strong class="block-props-name" id="blockPropsTitle">블록</strong>
+			<div class="block-props-head-right">
+				<button type="button" class="block-props-help-btn" id="blockPropsHelp" aria-pressed="false" aria-label="속성 도움말">
+					<i class="ri-question-line" aria-hidden="true"></i>
+				</button>
+				<button type="button" class="block-props-close-btn" id="blockPropsClose" aria-label="닫기">
+					<i class="ri-close-line" aria-hidden="true"></i>
+				</button>
+			</div>
+		</div>
+		<div class="block-props-body">
+			<div class="props-section">
+				<p class="props-section-label" data-help="블록의 가로 너비 비율, 상하좌우 외부 간격, 가로 정렬 방향을 조정합니다. 너비를 50% 이하로 좁히면 여러 블록을 한 줄에 나란히 배치할 수 있습니다.">블록 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">너비</span>
+						<select class="props-select" id="propBlockWidth">
+							<option value="">전체 너비</option>
+							<option value="auto">자동</option>
+							<option value="25%">25%</option>
+							<option value="33.333%">33%</option>
+							<option value="50%">50%</option>
+							<option value="66.666%">66%</option>
+							<option value="75%">75%</option>
+						</select>
+					</div>
+					<div class="props-row">
+						<span class="props-label">상단 간격</span>
+						<input type="number" class="props-input" id="propMarginTop" min="0" max="200" step="1" placeholder="0">
+					</div>
+					<div class="props-row">
+						<span class="props-label">하단 간격</span>
+						<input type="number" class="props-input" id="propMarginBottom" min="0" max="200" step="1" placeholder="10">
+					</div>
+					<div class="props-row">
+						<span class="props-label">좌측 간격</span>
+						<input type="number" class="props-input" id="propMarginLeft" min="0" max="200" step="1" placeholder="0">
+					</div>
+					<div class="props-row">
+						<span class="props-label">우측 간격</span>
+						<input type="number" class="props-input" id="propMarginRight" min="0" max="200" step="1" placeholder="0">
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">정렬</span>
+						<div class="props-align-btns" id="propBlockAlign">
+							<button type="button" class="props-align-btn" data-align="al" title="왼쪽 정렬" aria-label="왼쪽 정렬">
+								<i class="ri-align-left" aria-hidden="true"></i>
+							</button>
+							<button type="button" class="props-align-btn" data-align="ac" title="중앙 정렬" aria-label="중앙 정렬">
+								<i class="ri-align-center" aria-hidden="true"></i>
+							</button>
+							<button type="button" class="props-align-btn" data-align="ar" title="오른쪽 정렬" aria-label="오른쪽 정렬">
+								<i class="ri-align-right" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="props-section" id="propsListSection" style="display:none">
+				<p class="props-section-label" data-help="리스트 항목의 텍스트를 직접 수정하거나, 행을 추가·삭제할 수 있습니다.">행 관리</p>
+				<div class="props-card props-list-card" id="propsListRowsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddRowTop">
+					<i class="ri-add-line" aria-hidden="true"></i> 행 추가
+				</button>
+			</div>
+			<div class="props-section" id="propsLinkSection" style="display:none">
+				<p class="props-section-label" data-help="클릭 시 이동할 URL을 입력하고, 링크를 현재 탭에서 열지 새 탭에서 열지 선택합니다. 내부 페이지 링크도 입력 가능합니다.">링크 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">URL</span>
+						<input type="url" class="props-input props-input--wide" id="propLinkHref" placeholder="https://...">
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이동 타입</span>
+						<select class="props-select" id="propLinkTarget">
+							<option value="_blank">새 창 (_blank)</option>
+							<option value="_self">현재 창 (_self)</option>
+							<option value="_parent">부모 창 (_parent)</option>
+							<option value="_top">최상위 창 (_top)</option>
+						</select>
+					</div>
+				</div>
+			</div>
+			<div class="props-section" id="propsDownloadSection" style="display:none">
+				<p class="props-section-label" data-help="버튼 클릭 시 다운로드할 파일을 지정합니다. 파일을 선택한 뒤 적용 버튼을 눌러 연결하세요.">다운로드 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">파일 선택</span>
+						<input type="file" class="props-file-input" id="propDownloadFile">
+					</div>
+				</div>
+				<button type="button" class="props-add-row-btn" id="propsApplyDownload">
+					<i class="ri-check-line" aria-hidden="true"></i> 적용
+				</button>
+				<p class="props-notice" id="propsDownloadNotice" style="display:none">추후 작업예정입니다.</p>
+			</div>
+			<div class="props-section" id="propsBoxImgSection" style="display:none">
+				<p class="props-section-label" data-help="블록에 표시할 이미지를 업로드하고, 시각 장애인을 위한 이미지 설명(alt 텍스트)을 반드시 입력해 주세요. 접근성 기준에 필수입니다.">이미지 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">이미지 업로드</span>
+						<input type="file" class="props-file-input" id="propBoxImgFile" accept="image/*">
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이미지 설명</span>
+						<input type="text" class="props-input props-input--wide" id="propBoxImgAlt" placeholder="alt 텍스트 입력">
+					</div>
+				</div>
+				<button type="button" class="props-add-row-btn" id="propsApplyBoxImg">
+					<i class="ri-check-line" aria-hidden="true"></i> 적용
+				</button>
+			</div>
+			<div class="props-section" id="propsBoxIcoSection" style="display:none">
+				<p class="props-section-label" data-help="박스 블록 상단에 표시할 아이콘을 12가지 중에서 선택합니다. 콘텐츠 주제에 맞는 아이콘을 골라주세요.">아이콘 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">아이콘 선택</span>
+						<select class="props-select" id="propBoxIco">
+							<option value="ico-box1">아이콘 1 (모니터/체크)</option>
+							<option value="ico-box2">아이콘 2 (건물 비교)</option>
+							<option value="ico-box3">아이콘 3 (막대그래프)</option>
+							<option value="ico-box4">아이콘 4 (책/노트)</option>
+							<option value="ico-box5">아이콘 5 (집/홈)</option>
+							<option value="ico-box6">아이콘 6 (전구/태양)</option>
+							<option value="ico-box7">아이콘 7 (캘린더/별)</option>
+							<option value="ico-box8">아이콘 8 (위치/핀)</option>
+							<option value="ico-box9">아이콘 9 (문서 체크)</option>
+							<option value="ico-box10">아이콘 10 (동영상)</option>
+							<option value="ico-box11">아이콘 11 (말풍선)</option>
+							<option value="ico-box12">아이콘 12 (채팅창)</option>
+						</select>
+					</div>
+				</div>
+			</div>
+			<!-- 탭 속성 패널 -->
+			<div class="props-section" id="propsTabSection" style="display:none">
+				<p class="props-section-label" data-help="한 줄에 표시할 탭 버튼 개수와 각 탭의 제목을 관리합니다. 탭이 많을수록 개수를 늘려주세요.">탭 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">탭 열 수</span>
+						<select class="props-select" id="propTabCols">
+							<option value="2">2열</option>
+							<option value="3">3열</option>
+							<option value="4" selected>4열 (기본)</option>
+							<option value="5">5열</option>
+						</select>
+					</div>
+				</div>
+				<p class="props-section-label" style="margin-top:0.75rem">탭 항목 관리</p>
+				<div class="props-card props-tab-items-card" id="propsTabItemsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddTabItem">
+					<i class="ri-add-line" aria-hidden="true"></i> 탭 추가
+				</button>
+			</div>
+			<!-- 절차 속성 패널 -->
+			<div class="props-section" id="propsProcessSection" style="display:none">
+				<!-- 가로형 전용: 열 수 선택 -->
+				<div id="propsProcessHorizCard">
+					<p class="props-section-label" data-help="가로형 절차 블록에서 한 줄에 표시할 단계 수를 설정합니다.">열 수</p>
+					<div class="props-card">
+						<div class="props-row props-row--last">
+							<span class="props-label">열 수 선택</span>
+							<select class="props-select" id="propProcessCols">
+								<option value="2">2열</option>
+								<option value="3">3열</option>
+								<option value="4" selected>4열 (기본)</option>
+								<option value="5">5열</option>
+								<option value="6">6열</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				<!-- 공통: 단계별 설명(sub) 관리 -->
+				<p class="props-section-label" data-help="각 절차 단계 아래에 표시되는 부연 설명 텍스트를 편집합니다.">단계 설명 관리</p>
+				<div class="props-card props-process-steps-card" id="propsProcessStepsContainer"></div>
+				<!-- 세로형 전용: 단계 추가 버튼 -->
+				<button type="button" class="props-add-row-btn" id="propsAddProcessStep" style="display:none">
+					<i class="ri-add-line" aria-hidden="true"></i> 단계 추가
+				</button>
+			</div>
+			<!-- 아코디언 속성 패널 -->
+			<div class="props-section" id="propsAccordionSection" style="display:none">
+				<p class="props-section-label" data-help="아코디언 제목의 텍스트 크기와 메뉴 항목 제목을 관리합니다. 항목 클릭 시 내용이 펼쳐지는 구조입니다.">아코디언 설정</p>
+				<div class="props-card">
+					<div class="props-row props-row--last">
+						<span class="props-label">크기</span>
+						<select class="props-select" id="propAccordionSize">
+							<option value="">기본</option>
+							<option value="size-md">중간 (size-md)</option>
+							<option value="size-lg">크게 (size-lg)</option>
+						</select>
+					</div>
+				</div>
+				<p class="props-section-label" style="margin-top:0.75rem">메뉴 항목 관리</p>
+				<div class="props-card props-accordion-items-card" id="propsAccordionItemsContainer"></div>
+				<button type="button" class="props-add-row-btn" id="propsAddAccordionItem">
+					<i class="ri-add-line" aria-hidden="true"></i> 메뉴 추가
+				</button>
+			</div>
+
+			<!-- 버튼레이아웃(button-00) 내부 버튼 속성 -->
+			<div class="props-section" id="propsButtonInnerSection" style="display:none">
+				<p class="props-section-label">버튼 속성 설정</p>
+				<div id="propsButtonInnerContainer"></div>
+			</div>
+
+			<!-- 버튼 속성 패널 -->
+			<div class="props-section" id="propsButtonSection" style="display:none">
+				<p class="props-section-label" data-help="버튼 높이(크기)와 링크 이동 방식을 설정합니다. 주요 CTA 버튼은 Extra Large 크기를 권장합니다.">버튼 설정</p>
+				<div class="props-card">
+					<div class="props-row">
+						<span class="props-label">크기</span>
+						<select class="props-select" id="propBtnSize">
+							<option value="">기본 (Medium)</option>
+							<option value="size-sm">Small</option>
+							<option value="size-lg">Large</option>
+							<option value="size-exlg">Extra Large</option>
+						</select>
+					</div>
+					<div class="props-row props-row--last">
+						<span class="props-label">이동 방식</span>
+						<select class="props-select" id="propBtnOpenType">
+							<option value="default">기본</option>
+							<option value="new-window">새창</option>
+						</select>
+					</div>
+				</div>
+				<!-- 아이콘 버튼(button-05, button-06) 전용 -->
+				<div id="propsButtonIconCard" style="display:none">
+					<p class="props-section-label" style="margin-top:0.75rem">아이콘 설정</p>
+					<div class="props-card">
+						<div class="props-row" id="propBtnIconRow">
+							<span class="props-label">아이콘 선택</span>
+							<select class="props-select" id="propBtnIcon">
+								<option value="ri-external-link-line">새창 아이콘</option>
+								<option value="ri-phone-fill">전화 아이콘</option>
+							</select>
+						</div>
+						<!-- 아이콘 위치: button-05 전용 -->
+						<div class="props-row props-row--last" id="propBtnIconPosRow">
+							<span class="props-label">아이콘 위치</span>
+							<select class="props-select" id="propBtnIconPos">
+								<option value="before">텍스트 앞</option>
+								<option value="after">텍스트 뒤</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				<!-- 아이콘 전용 버튼(button-06) 숨김 텍스트 입력 -->
+				<div id="propsButtonHidCard" style="display:none">
+					<p class="props-section-label" style="margin-top:0.75rem">숨김 텍스트 (접근성)</p>
+					<div class="props-card">
+						<div class="props-row props-row--last" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+							<span class="props-label">버튼 목적 입력</span>
+							<input type="text" class="props-input" id="propBtnHidText"
+								style="width:100%;text-align:left;height:1.5rem"
+								placeholder="예: 전화 연결, 새창으로 이동">
+						</div>
+					</div>
+					<button type="button" class="props-add-row-btn" id="propsApplyBtnHid">
+						<i class="ri-check-line" aria-hidden="true"></i> 적용
+					</button>
+				</div>
+				<!-- 주요버튼(button-01) 안내 문구 -->
+				<div id="propsButtonPriNotice" style="display:none">
+					<p class="props-notice" style="margin-top:0.5rem;display:block">주요버튼은 한 화면에 1개만 배치할 수 있습니다.</p>
+				</div>
+			</div>
+
+			<!-- 테이블 속성 패널 -->
+				<div class="props-section" id="propsTableSection" style="display:none">
+					<p class="props-section-label" data-help="열 수를 입력하고 너비를 자동(균등) 또는 수동으로 나눌 수 있습니다. 가로 스크롤은 좁은 화면에서 테이블이 옆으로 밀리지 않도록 합니다.">열 설정</p>
+					<div class="props-card">
+						<div class="props-row">
+							<span class="props-label">열 수</span>
+							<input type="number" class="props-input" id="propTableColCount" min="1" max="12" style="width:4rem">
+						</div>
+						<div class="props-row">
+							<span class="props-label">너비 조절</span>
+							<select class="props-select" id="propTableColWidthMode">
+								<option value="auto">자동 (균등)</option>
+								<option value="manual">수동 입력</option>
+							</select>
+						</div>
+						<div class="props-row props-row--last">
+							<span class="props-label">가로 스크롤</span>
+							<select class="props-select" id="propTableScroll">
+								<option value="">기본</option>
+								<option value="scroll-w">태블릿~</option>
+								<option value="scroll-m">모바일~</option>
+							</select>
+						</div>
+					</div>
+					<div id="propsTableColWidthsCard" style="display:none">
+						<p class="props-section-label" style="margin-top:0.5rem">열 너비 입력 <small style="font-weight:400;color:#888">(합계 100%)</small></p>
+						<div class="props-card" id="propsTableColWidthsContainer"></div>
+						<button type="button" class="props-add-row-btn" id="propsApplyTableColWidths">
+							<i class="ri-check-line" aria-hidden="true"></i> 적용
+						</button>
+						<p class="props-notice" id="propsTableColWidthsNotice" style="display:none">각 열 너비의 합계가 100%가 되어야 합니다.</p>
+					</div>
+					<div id="propsTableStructure"></div>
+				</div>
+
+				<!-- 가정통신문 헤더 속성 패널 -->
+				<div class="props-section" id="propsNewsletterHeaderSection" style="display:none">
+					<p class="props-section-label" data-help="가정통신문 헤더의 로고 이미지와 학교 정보를 설정합니다. 부서명·연락처를 비우면 우측에 표시되지 않습니다.">헤더 설정</p>
+					<div class="props-card">
+						<div class="props-row">
+							<span class="props-label">로고 이미지</span>
+							<input type="file" class="props-file-input" id="propNlLogoFile" accept="image/*">
+						</div>
+						<div class="props-row">
+							<span class="props-label">학교명</span>
+							<input type="text" class="props-input props-input--wide" id="propNlSchoolName" placeholder="○○학교">
+						</div>
+						<div class="props-row">
+							<span class="props-label">부서명</span>
+							<input type="text" class="props-input props-input--wide" id="propNlDept" placeholder="(없으면 비워두세요)">
+						</div>
+						<div class="props-row props-row--last">
+							<span class="props-label">연락처</span>
+							<input type="text" class="props-input props-input--wide" id="propNlPhone" placeholder="(없으면 비워두세요)">
+						</div>
+					</div>
+					<button type="button" class="props-add-row-btn" id="propsApplyNlHeader">
+						<i class="ri-check-line" aria-hidden="true"></i> 적용
+					</button>
+				</div>
+
+				<!-- 가정통신문 푸터 속성 패널 -->
+				<div class="props-section" id="propsNewsletterFooterSection" style="display:none">
+					<p class="props-section-label" data-help="가정통신문 하단의 날짜와 학교장 서명 정보를 설정합니다.">날짜 · 서명 설정</p>
+					<div class="props-card">
+						<div class="props-row">
+							<span class="props-label">날짜</span>
+							<input type="text" class="props-input" id="propNlYear" placeholder="20__" style="width:3rem">
+							<span class="props-unit" style="margin:0 2px">년</span>
+							<input type="text" class="props-input" id="propNlMonth" placeholder="__" style="width:2.2rem">
+							<span class="props-unit" style="margin:0 2px">월</span>
+							<input type="text" class="props-input" id="propNlDay" placeholder="__" style="width:2.2rem">
+							<span class="props-unit" style="margin:0 2px">일</span>
+						</div>
+						<div class="props-row">
+							<span class="props-label">학교명</span>
+							<input type="text" class="props-input props-input--wide" id="propNlFooterSchool" placeholder="○○학교">
+						</div>
+						<div class="props-row props-row--last">
+							<span class="props-label">직인</span>
+							<select class="props-select" id="propNlStamp">
+								<option value="use">직인 사용</option>
+								<option value="omit">직인 미사용</option>
+							</select>
+						</div>
+					</div>
+					<button type="button" class="props-add-row-btn" id="propsApplyNlFooter">
+						<i class="ri-check-line" aria-hidden="true"></i> 적용
+					</button>
+				</div>
+
+				<!-- 가정통신문 폰트 속성 패널 -->
+				<div class="props-section" id="propsNewsletterFontSection" style="display:none">
+					<p class="props-section-label" data-help="가정통신문 본문 영역의 기본 폰트를 설정합니다. 개별 블록에서 별도 지정 시 해당 블록에 우선 적용됩니다.">본문 기본 스타일</p>
+					<div class="props-card">
+						<div class="props-row">
+							<span class="props-label">폰트</span>
+							<select class="props-select" id="propNlFontFamily">
+								<option value="">기본 (Pretendard)</option>
+								<option value="'Noto Sans KR', sans-serif">Noto Sans KR</option>
+								<option value="'Malgun Gothic', '맑은 고딕', sans-serif">맑은 고딕</option>
+								<option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+								<option value="'Nanum Myeongjo', serif">나눔명조</option>
+							</select>
+						</div>
+						<!-- <div class="props-row">
+							<span class="props-label">본문 크기</span>
+							<input type="number" class="props-input" id="propNlFontSize" min="10" max="24" step="1" placeholder="15" style="width:4rem">
+						</div> -->
+						<div class="props-row">
+							<span class="props-label">줄 간격</span>
+							<select class="props-select" id="propNlLineHeight">
+								<option value="">기본 (1.9)</option>
+								<option value="1.5">1.5</option>
+								<option value="1.7">1.7</option>
+								<option value="2.0">2.0</option>
+								<option value="2.2">2.2</option>
+							</select>
+						</div>
+						<!-- <div class="props-row">
+							<span class="props-label">굵기</span>
+							<select class="props-select" id="propNlFontWeight">
+								<option value="">기본</option>
+								<option value="300">얇게 (300)</option>
+								<option value="400">보통 (400)</option>
+								<option value="500">중간 (500)</option>
+								<option value="700">굵게 (700)</option>
+							</select>
+						</div>
+						<div class="props-row props-row--last">
+							<span class="props-label">블록 간격</span>
+							<input type="number" class="props-input" id="propNlBlockGap" min="0" max="80" step="2" placeholder="12" style="width:4rem">
+							<span class="props-unit">px</span>
+						</div> -->
+					</div>
+					<button type="button" class="props-add-row-btn" id="propsApplyNlFont">
+						<i class="ri-check-line" aria-hidden="true"></i> 적용
+					</button>
+				</div>
+
+
+				<div class="props-section" id="propsDiscloserSection" style="display:none">
+				<p class="props-section-label">Discloser 설정</p>
+				<div class="props-card">
+					<div class="props-row" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+						<span class="props-label">버튼 제목</span>
+						<input type="text" class="props-input" id="propDiscloserTitle"
+							style="width:100%;text-align:left;height:1.5rem"
+							placeholder="버튼 제목 입력">
+					</div>
+					<div class="props-row props-row--last" style="flex-direction:column;align-items:stretch;gap:0.3rem">
+						<span class="props-label">내용</span>
+						<textarea class="props-input" id="propDiscloserContent"
+							style="width:100%;height:4rem;resize:vertical;text-align:left;line-height:1.4;padding:0.3rem 6px"
+							placeholder="내용 입력 (비우면 '내용이 없습니다.' 표시)"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+	</aside>
+
+	<!-- 인라인 스마트 블록 속성 팝업 -->
+	<div class="inline-prop-popup" id="inlinePropPopup" role="dialog" aria-label="인라인 요소 속성 설정">
+		<div class="inline-prop-popup__row">
+			<span class="inline-prop-popup__label">텍스트</span>
+			<input type="text" class="inline-prop-popup__input" id="inlinePropText" placeholder="표시할 텍스트">
+		</div>
+		<div class="inline-prop-popup__link" id="inlinePropLinkSection">
+			<div class="inline-prop-popup__row">
+				<span class="inline-prop-popup__label">URL</span>
+				<input type="url" class="inline-prop-popup__input" id="inlinePropHref" placeholder="https://">
+			</div>
+			<div class="inline-prop-popup__row" id="inlinePropTargetRow">
+				<span class="inline-prop-popup__label">이동 타입</span>
+				<select class="inline-prop-popup__select" id="inlinePropTarget">
+					<option value="_blank">새 창 (_blank)</option>
+					<option value="_self">현재 창 (_self)</option>
+					<option value="_parent">부모 창 (_parent)</option>
+					<option value="_top">최상위 창 (_top)</option>
+				</select>
+			</div>
+		</div>
+		<div class="inline-prop-popup__download" id="inlinePropDownloadSection" style="display:none">
+			<p class="inline-prop-popup__notice">추후 작업예정입니다.</p>
+		</div>
+		<div class="inline-prop-popup__actions">
+			<button type="button" class="inline-prop-popup__cancel" id="inlinePropCancel">취소</button>
+			<button type="button" class="inline-prop-popup__confirm" id="inlinePropConfirm">삽입</button>
+		</div>
+	</div>
+
 	<aside class="markup-panel" id="markupPanel" role="dialog" aria-modal="true" aria-label="생성된 마크업">
 		<div class="markup-backdrop" id="markupBackdrop"></div>
 		<div class="markup-panel-inner">
 			<div class="markup-head">
-				<div><h2>마크업</h2></div>
+				<div>
+					<h2>마크업</h2>
+				</div>
 				<div class="markup-head-actions">
 					<button type="button" class="primary-button copy-markup-button" id="copyMarkup">
-						<i class="ri-file-copy-line" aria-hidden="true"></i>복사
+						<i class="ri-file-copy-line" aria-hidden="true"></i>
+						복사
 					</button>
 					<button type="button" class="ghost-button markup-close-btn" id="markupClose" aria-label="닫기">
 						<i class="ri-close-line" aria-hidden="true"></i>
@@ -108,7 +666,64 @@
 			<p class="copy-state" id="copyState" aria-live="polite"></p>
 		</div>
 	</aside>
-	<script src="js/builder-shared.js"></script>
-	<script src="js/sub-builder.js"></script>
+
+	<div class="icon-drawer" id="iconDrawer">
+		<div class="icon-drawer-backdrop" id="iconDrawerBackdrop"></div>
+		<div class="icon-drawer-panel">
+			<div class="icon-drawer-head">
+				<strong>아이콘 선택</strong>
+				<button type="button" class="ghost-button" id="iconDrawerClose">
+					<i class="ri-close-line" aria-hidden="true"></i>
+				</button>
+			</div>
+			<div class="icon-drawer-body">
+				<nav class="icon-tree" id="iconTree"></nav>
+				<div class="icon-grid-area" id="iconGridArea">
+					<p class="icon-grid-empty">왼쪽에서 카테고리를 선택하세요.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- 가정통신문 인라인 텍스트 서식 툴바 -->
+	<div id="nlInlineToolbar" class="nl-inline-toolbar" role="toolbar" aria-label="텍스트 서식">
+		<label class="nl-itb-item" title="글자 색상">
+			<i class="ri-font-color" aria-hidden="true"></i>
+			<input type="color" id="nlItbColor" value="#222222">
+		</label>
+		<div class="nl-itb-sep"></div>
+		<div class="nl-itb-size-wrap" id="nlItbSizeWrap" title="클릭 후 숫자 입력">
+			<span class="nl-itb-size-display" id="nlItbSizeDisplay">—</span>
+			<span class="nl-itb-unit">px</span>
+		</div>
+		<button type="button" class="nl-itb-btn" id="nlItbApplySize" title="크기 적용 (Enter)">
+			<i class="ri-check-line" aria-hidden="true"></i>
+		</button>
+		<div class="nl-itb-sep"></div>
+		<button type="button" class="nl-itb-btn" id="nlItbBold" title="굵게"><b>B</b></button>
+		<button type="button" class="nl-itb-btn nl-itb-reset" id="nlItbReset" title="서식 초기화">
+			<i class="ri-format-clear" aria-hidden="true"></i>
+		</button>
+	</div>
+
+	<!-- 테이블 셀 span 팝오버 -->
+	<div id="tableCellSpanPopover" class="table-span-popover">
+		<p class="table-span-popover-title">셀 병합 (colspan / rowspan)</p>
+		<div class="table-span-popover-row">
+			<label for="tableCellColspan">가로</label>
+			<input type="number" id="tableCellColspan" min="1" max="12" value="1">
+		</div>
+		<div class="table-span-popover-row">
+			<label for="tableCellRowspan">세로</label>
+			<input type="number" id="tableCellRowspan" min="1" max="12" value="1">
+		</div>
+		<button type="button" id="tableCellSpanApply" class="table-span-apply-btn">적용</button>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+	<script src="/js/jquery.min.js"></script>
+	<script src="/js/con_com.js"></script>
+	<script src="/js/builder-shared.js"></script>
+	<script src="/js/cntBuilder.js"></script>
 </body>
 </html>

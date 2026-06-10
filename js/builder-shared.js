@@ -27,24 +27,38 @@
 		});
 	}
 
-	function bindFilterEvents({ onTemplateFilter, onDecoFilter } = {}) {
+	function bindFilterEvents({
+		container = document,
+		onTemplateFilter,
+		onBlockFilter,
+		onDesignTemplateFilter,
+		onDecoFilter
+	} = {}) {
 		const activate = btn => {
 			if (!btn) return;
 			if (btn.dataset.templateFilter) {
-				document.querySelectorAll('[data-template-filter]').forEach(item => {
+				container.querySelectorAll('[data-template-filter]').forEach(item => {
 					item.classList.toggle('is-active', item === btn);
 				});
-				if (onTemplateFilter) onTemplateFilter(btn.dataset.templateFilter, btn);
+				const handler = onBlockFilter || onTemplateFilter;
+				if (handler) handler(btn.dataset.templateFilter, btn);
+			}
+			if (btn.dataset.designTemplateFilter) {
+				container.querySelectorAll('[data-design-template-filter]').forEach(item => {
+					item.classList.toggle('is-active', item === btn);
+				});
+				const handler = onDesignTemplateFilter || onTemplateFilter;
+				if (handler) handler(btn.dataset.designTemplateFilter, btn);
 			}
 			if (btn.dataset.decoFilter) {
-				document.querySelectorAll('[data-deco-filter]').forEach(item => {
+				container.querySelectorAll('[data-deco-filter]').forEach(item => {
 					item.classList.toggle('is-active', item === btn);
 				});
 				if (onDecoFilter) onDecoFilter(btn.dataset.decoFilter, btn);
 			}
 		};
 
-		document.querySelectorAll('.component-filters, .deco-filters').forEach(filterBar => {
+		container.querySelectorAll('.component-filters, .deco-filters, .design-template-filters').forEach(filterBar => {
 			if (filterBar.dataset.filterBarBound === 'true') return;
 			filterBar.dataset.filterBarBound = 'true';
 			let pressButton = null;
@@ -55,7 +69,7 @@
 
 			filterBar.addEventListener('pointerdown', event => {
 				if (event.button !== 0) return;
-				pressButton = closestElement(event.target, '[data-template-filter], [data-deco-filter]');
+				pressButton = closestElement(event.target, '[data-template-filter], [data-deco-filter], [data-design-template-filter]');
 				if (!pressButton || !filterBar.contains(pressButton)) {
 					pressButton = null;
 					return;
@@ -72,7 +86,7 @@
 				if (!pressButton) return;
 				const target = pressButton;
 				pressButton = null;
-				if (moved || !filterBar.contains(closestElement(event.target, '[data-template-filter], [data-deco-filter]') || target)) return;
+				if (moved || !filterBar.contains(closestElement(event.target, '[data-template-filter], [data-deco-filter], [data-design-template-filter]') || target)) return;
 				suppressClick = true;
 				activate(target);
 			});
@@ -81,7 +95,7 @@
 				moved = false;
 			});
 			filterBar.addEventListener('click', event => {
-				const btn = closestElement(event.target, '[data-template-filter], [data-deco-filter]');
+				const btn = closestElement(event.target, '[data-template-filter], [data-deco-filter], [data-design-template-filter]');
 				if (!btn || !filterBar.contains(btn)) return;
 				event.preventDefault();
 				if (suppressClick) {
@@ -92,8 +106,8 @@
 			});
 		});
 
-		document.querySelectorAll('[data-template-filter], [data-deco-filter]').forEach(btn => {
-			if (btn.closest('.component-filters, .deco-filters')) return;
+		container.querySelectorAll('[data-template-filter], [data-deco-filter], [data-design-template-filter]').forEach(btn => {
+			if (btn.closest('.component-filters, .deco-filters, .design-template-filters')) return;
 			if (btn.dataset.filterButtonBound === 'true') return;
 			btn.dataset.filterButtonBound = 'true';
 			btn.addEventListener('click', event => {
@@ -103,9 +117,9 @@
 		});
 	}
 
-	function bindScrollableFilters() {
-		document.querySelectorAll('.filter-scroll-shell').forEach(shell => {
-			const scroller = shell.querySelector('.component-filters, .deco-filters');
+	function bindScrollableFilters(container = document) {
+		container.querySelectorAll('.filter-scroll-shell').forEach(shell => {
+			const scroller = shell.querySelector('.component-filters, .deco-filters, .design-template-filters');
 			if (!scroller || scroller.dataset.scrollUiBound === 'true') return;
 			scroller.dataset.scrollUiBound = 'true';
 
