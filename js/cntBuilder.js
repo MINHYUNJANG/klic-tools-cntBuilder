@@ -781,7 +781,10 @@ function createBlock(type) {
 		type,
 		columns: 1,
 		columnMode: '1',
+		marginTop: 0,
 		marginBottom: isDesignTemplateSection ? 0 : 10,
+		marginLeft: 0,
+		marginRight: 0,
 		blockWidth: template.element.firstElementChild?.tagName.toLowerCase() === 'a' ? 'auto' : '',
 		blockAlign: '',
 		items: [{ ...cloneData(defaultData), style: createStyleForType(type) }]
@@ -1783,10 +1786,16 @@ function openBlockProps(blockId) {
 	const titleEl = document.getElementById('blockPropsTitle');
 	const widthSel = document.getElementById('propBlockWidth');
 	const marginInput = document.getElementById('propMarginBottom');
+	const marginTopInput = document.getElementById('propMarginTop');
+	const marginLeftInput = document.getElementById('propMarginLeft');
+	const marginRightInput = document.getElementById('propMarginRight');
 
 	if (titleEl) titleEl.textContent = block.type || '블록';
 	if (widthSel) widthSel.value = block.blockWidth || '';
+	if (marginTopInput) marginTopInput.value = block.marginTop ?? 0;
 	if (marginInput) marginInput.value = block.marginBottom ?? 10;
+	if (marginLeftInput) marginLeftInput.value = block.marginLeft ?? 0;
+	if (marginRightInput) marginRightInput.value = block.marginRight ?? 0;
 	document.querySelectorAll('#propBlockAlign .props-align-btn').forEach(btn => {
 		btn.classList.toggle('is-active', btn.dataset.align === (block.blockAlign || ''));
 	});
@@ -2247,12 +2256,39 @@ function initBlockPropsPanel() {
 		render();
 	});
 
+	document.getElementById('propMarginTop')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block) return;
+		pushHistory();
+		block.marginTop = Number(this.value) || 0;
+		render();
+	});
+
 	document.getElementById('propMarginBottom')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
 		const block = state.blocks.find(b => b.id === _propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.marginBottom = Number(this.value) || 0;
+		render();
+	});
+
+	document.getElementById('propMarginLeft')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block) return;
+		pushHistory();
+		block.marginLeft = Number(this.value) || 0;
+		render();
+	});
+
+	document.getElementById('propMarginRight')?.addEventListener('change', function () {
+		if (!_propsBlockId) return;
+		const block = state.blocks.find(b => b.id === _propsBlockId);
+		if (!block) return;
+		pushHistory();
+		block.marginRight = Number(this.value) || 0;
 		render();
 	});
 
@@ -4589,11 +4625,29 @@ function initCanvasReactTab() {
 	});
 }
 
+// % 너비 + 수평 마진 조합 시 총 너비 초과 방지: calc(50% - 10px) 형태로 반환
+function _calcEffectiveWidth(blockWidth, marginLeft, marginRight) {
+	if (!blockWidth) return null;
+	const ml = marginLeft || 0;
+	const mr = marginRight || 0;
+	if (blockWidth.endsWith('%') && (ml || mr)) {
+		const deductions = [ml && `${ml}px`, mr && `${mr}px`].filter(Boolean).join(' - ');
+		return `calc(${blockWidth} - ${deductions})`;
+	}
+	return blockWidth;
+}
+
 function renderBuilderBlock(block, idx = 0, total = 1) {
 	const template = componentTemplates[block.type];
-	const effectiveMargin = (total <= 1 || idx === total - 1) ? 0 : (block.marginBottom ?? 10);
+	const effectiveMarginBottom = (total <= 1 || idx === total - 1) ? 0 : (block.marginBottom ?? 10);
+	const blockStyleParts = [`margin-bottom:${effectiveMarginBottom}px`];
+	if (block.marginTop) blockStyleParts.push(`margin-top:${block.marginTop}px`);
+	if (block.marginLeft) blockStyleParts.push(`margin-left:${block.marginLeft}px`);
+	if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
+	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.marginLeft, block.marginRight);
+	if (effectiveWidth) blockStyleParts.push(`width:${effectiveWidth}`);
 	return `
-		<section class="builder-block" draggable="true" data-block-id="${block.id}" style="margin-bottom:${effectiveMargin}px${block.blockWidth ? `;width:${block.blockWidth}` : ''}">
+		<section class="builder-block" draggable="true" data-block-id="${block.id}" style="${blockStyleParts.join(';')}">
 			<div class="block-controls" aria-hidden="true">
 				<button type="button" class="block-props-btn" data-tooltip="속성" data-props-block-id="${block.id}" aria-label="블록 속성">
 					<i class="ri-settings-3-line" aria-hidden="true"></i>
@@ -4805,8 +4859,12 @@ function renderRepeatedColumns(block) {
 							const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 								? bb.marginBottom
 								: (parseInt(state.newsletterStyle.blockGap) || 12);
+							if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 							wrapper.style.marginBottom = gapPx + 'px';
-							if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
+							if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
+							if (bb.marginRight && bb.blockAlign !== 'ac' && bb.blockAlign !== 'ar') wrapper.style.marginRight = bb.marginRight + 'px';
+							const nlEffectiveWidth = _calcEffectiveWidth(bb.blockWidth, bb.blockAlign ? 0 : bb.marginLeft, bb.blockAlign ? 0 : bb.marginRight);
+							if (nlEffectiveWidth) wrapper.style.width = nlEffectiveWidth;
 							if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
 							else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
 							const bbInnerHtml = renderRepeatedColumns(bb);
@@ -6820,8 +6878,12 @@ function _prettyHtml(html) {
 function _wrapInSection(block, idx, total, innerHtml) {
 	const effectiveMargin = (total <= 1 || idx === total - 1) ? 0 : (block.marginBottom ?? 10);
 	const styleParts = [];
+	if (block.marginTop) styleParts.push(`margin-top:${block.marginTop}px`);
 	if (effectiveMargin) styleParts.push(`margin-bottom:${effectiveMargin}px`);
-	if (block.blockWidth) styleParts.push(`width:${block.blockWidth}`);
+	if (block.marginLeft) styleParts.push(`margin-left:${block.marginLeft}px`);
+	if (block.marginRight) styleParts.push(`margin-right:${block.marginRight}px`);
+	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.marginLeft, block.marginRight);
+	if (effectiveWidth) styleParts.push(`width:${effectiveWidth}`);
 	const styleAttr = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
 	const indented = innerHtml.split('\n').map(l => `  ${l}`).join('\n');
 	return `<section${styleAttr}>\n${indented}\n</section>`;
@@ -6856,8 +6918,12 @@ function _generateBlocksMarkup() {
 								wrapper.className = 'nl-block-insert nl-body-block-wrap';
 								const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 									? bb.marginBottom : (parseInt(state.newsletterStyle.blockGap) || 12);
+								if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 								wrapper.style.marginBottom = gapPx + 'px';
-								if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
+								if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
+								if (bb.marginRight && bb.blockAlign !== 'ac' && bb.blockAlign !== 'ar') wrapper.style.marginRight = bb.marginRight + 'px';
+								const nlEffectiveWidth = _calcEffectiveWidth(bb.blockWidth, bb.blockAlign ? 0 : bb.marginLeft, bb.blockAlign ? 0 : bb.marginRight);
+								if (nlEffectiveWidth) wrapper.style.width = nlEffectiveWidth;
 								if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
 								else if (bb.blockAlign === 'ar') { wrapper.style.marginLeft = 'auto'; }
 								if (bb.nlBodyZoom && bb.nlBodyZoom !== 100) wrapper.style.zoom = (bb.nlBodyZoom / 100).toString();

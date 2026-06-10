@@ -206,6 +206,7 @@
   flex-wrap: wrap;
   align-items: flex-start;
   align-content: flex-start;
+  justify-content: space-between;
 }
 
 .nl-content-area.nl-body-drop-over {

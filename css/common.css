@@ -1678,7 +1678,7 @@ body[data-preview-device="tablet"] .builder-columns.columns-6 {
 	flex-wrap: wrap;
 	align-items: flex-start;
 	align-content: flex-start;
-	justify-content: center;
+	justify-content: space-between;
 	flex: 0 0 auto;
 	min-height: 0;
 	max-width: 1200px;
