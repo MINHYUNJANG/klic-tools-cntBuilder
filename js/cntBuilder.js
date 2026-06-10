@@ -60,6 +60,7 @@ const state = {
 	sidebarTab: 'blocks',
 	decorationFilter: 'all',
 	selectedItem: null,
+	tableCellDrag: null,
 	overlays: [],
 	customDecorations: [],
 	undoStack: [],
@@ -1344,6 +1345,7 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 			cell.dataset.columnIndex = '0';
 			cell.dataset.tableSection = sectionTag;
 			cell.dataset.tableRowKey = rowData.key;
+			cell.dataset.tableColIdx = String(c);
 		}
 		tr.appendChild(cell);
 	}
@@ -1493,34 +1495,41 @@ function _syncTableCellKeys(block, oldCount, newCount) {
 
 function _renderTableSectionRows(block, sectionTag, rows) {
 	if (!rows || !rows.length) return '';
-	return rows.map((row, idx) => {
-		const thAlignVal = row.thAlign || '';
-		const tdAlignVal = row.tdAlign || '';
+	const colCount = block.tableColCount || 4;
+	return `<div class="props-table-mini" style="--props-table-cols:${colCount + 1}">${rows.map((row, idx) => {
 		const removeDisabled = sectionTag === 'tbody' && rows.length <= 1;
-		const colCount = block.tableColCount || 4;
 		const cellTags = row.cellTags || Array(colCount).fill('td');
-		const alignBtnGroup = (cellType, currentAlign) =>
-			['al', 'ac', 'ar'].map(a => `<button type="button" class="props-table-align-btn${currentAlign === a ? ' is-active' : ''}" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" data-cell-type="${cellType}" data-align="${a}" title="${a === 'al' ? '왼쪽' : a === 'ac' ? '중앙' : '오른쪽'}"><i class="ri-align-${a === 'al' ? 'left' : a === 'ac' ? 'center' : 'right'}"></i></button>`).join('');
-		const tagToggle = sectionTag === 'tbody' ? `<div class="props-table-tag-toggle">
-				<span class="props-table-align-label" style="min-width:1.8rem">태그</span>
-				<div class="props-table-tag-cells">${Array.from({ length: colCount }, (_, c) => {
-					const t = cellTags[c] || 'td';
-					return `<button type="button" class="props-table-cell-tag-btn${t === 'th' ? ' is-th' : ''}" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" title="열 ${c + 1}: ${t} (클릭하여 전환)">${t}</button>`;
-				}).join('')}</div>
-			</div>` : '';
-		return `<div class="props-list-row props-table-row">
-			<div class="props-table-row-header">
-				<span class="props-list-row-dot"></span>
-				<span class="props-list-row-text">행 ${idx + 1}</span>
-				<button type="button" class="props-list-row-remove-btn props-table-tr-remove-btn" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" title="행 삭제"${removeDisabled ? ' disabled' : ''}><i class="ri-subtract-line"></i></button>
-			</div>
-			${tagToggle}
-			<div class="props-table-row-aligns">
-				<div class="props-table-align-btns"><span class="props-table-align-label">th</span>${alignBtnGroup('th', thAlignVal)}</div>
-				${sectionTag === 'tbody' ? `<div class="props-table-align-btns"><span class="props-table-align-label">td</span>${alignBtnGroup('td', tdAlignVal)}</div>` : ''}
-			</div>
+		const rowControls = `<span class="props-table-mini-cell props-table-row-control-cell">
+			<button type="button" class="props-list-row-remove-btn props-table-tr-remove-btn" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="${row.key}" title="행 삭제"${removeDisabled ? ' disabled' : ''}><i class="ri-subtract-line"></i></button>
+		</span>`;
+		const cells = Array.from({ length: colCount }, (_, c) => {
+			const t = sectionTag === 'tbody' ? (cellTags[c] || 'td') : 'th';
+			const cellLabel = String(c + 1);
+			if (sectionTag !== 'tbody') {
+				return `<span class="props-table-mini-cell is-th" title="열 ${cellLabel}: th">${cellLabel}</span>`;
+			}
+			return `<button type="button" class="props-table-mini-cell props-table-cell-tag-btn${t === 'th' ? ' is-th' : ''}" data-block-id="${block.id}" data-row-key="${row.key}" data-col-idx="${c}" title="열 ${c + 1}: ${t} (클릭하여 th/td 전환)">${cellLabel}</button>`;
+		}).join('');
+		return `<div class="props-table-mini-row">
+			<div class="props-table-mini-cells">${rowControls}${cells}</div>
 		</div>`;
-	}).join('');
+	}).join('')}</div>`;
+}
+
+function _renderTableSectionAlignControls(block, sectionTag, rows) {
+	if (!rows || !rows.length) return '';
+	const getSharedAlign = () => {
+		const first = rows[0]?.thAlign || '';
+		const sameTh = rows.every(row => (row.thAlign || '') === first);
+		if (sectionTag !== 'tbody') return sameTh ? first : '';
+		const sameTd = rows.every(row => (row.tdAlign || '') === first);
+		return sameTh && sameTd ? first : '';
+	};
+	const currentAlign = getSharedAlign();
+	const alignBtnGroup = ['al', 'ac', 'ar'].map(a => `<button type="button" class="props-table-align-btn${currentAlign === a ? ' is-active' : ''}" data-block-id="${block.id}" data-section="${sectionTag}" data-row-key="__all__" data-cell-type="all" data-align="${a}" title="${a === 'al' ? '왼쪽' : a === 'ac' ? '중앙' : '오른쪽'}"><i class="ri-align-${a === 'al' ? 'left' : a === 'ac' ? 'center' : 'right'}"></i></button>`).join('');
+	return `<div class="props-table-row-aligns props-table-section-aligns">
+		<div class="props-table-align-btns"><span class="props-table-align-label">정렬</span>${alignBtnGroup}</div>
+	</div>`;
 }
 
 function renderPropsTableStructure(block) {
@@ -1528,32 +1537,41 @@ function renderPropsTableStructure(block) {
 	if (!container) return;
 
 	const sections = [
-		{ tag: 'thead', label: 'thead (머리글)', korean: '머리글', hasKey: 'tableHasThead', rowsKey: 'tableTheadRows', canRemove: true },
-		{ tag: 'tbody', label: 'tbody (본문)', korean: '본문', hasKey: 'tableHasTbody', rowsKey: 'tableTbodyRows', canRemove: false },
-		{ tag: 'tfoot', label: 'tfoot (바닥글)', korean: '바닥글', hasKey: 'tableHasTfoot', rowsKey: 'tableTfootRows', canRemove: true }
+		{ tag: 'thead', hasKey: 'tableHasThead', rowsKey: 'tableTheadRows', canRemove: true },
+		{ tag: 'tbody', hasKey: 'tableHasTbody', rowsKey: 'tableTbodyRows', canRemove: false },
+		{ tag: 'tfoot', hasKey: 'tableHasTfoot', rowsKey: 'tableTfootRows', canRemove: true }
 	];
 
-	container.innerHTML = sections.map(({ tag, label, korean, hasKey, rowsKey, canRemove }) => {
+	container.innerHTML = sections.map(({ tag, hasKey, rowsKey, canRemove }) => {
 		const hasSection = !!block[hasKey];
 		const rows = block[rowsKey] || [];
 
 		if (!hasSection) {
-			return `<div class="props-table-section-empty">
-				<p class="props-section-label" style="margin-top:0.75rem">${label}</p>
-				<button type="button" class="props-add-row-btn props-table-add-section-btn" data-block-id="${block.id}" data-section="${tag}">
-					<i class="ri-add-line" aria-hidden="true"></i> ${korean} 추가
-				</button>
+			return `<div class="props-table-section-wrap">
+				<div class="props-table-outer-heading">
+					<p class="props-section-label props-table-outer-label">${tag}</p>
+				</div>
+				<div class="props-table-section-empty props-table-section-box">
+					<button type="button" class="props-add-row-btn props-table-add-section-btn" data-block-id="${block.id}" data-section="${tag}">
+						<i class="ri-add-line" aria-hidden="true"></i> ${tag} 추가
+					</button>
+				</div>
 			</div>`;
 		}
 
-		return `<div class="props-table-section-group">
-			<p class="props-section-label" style="margin-top:0.75rem">${label}</p>
-			<div class="props-card props-list-card">${_renderTableSectionRows(block, tag, rows)}</div>
-			<div style="display:flex;gap:0.4rem;margin-top:0.3rem">
-				<button type="button" class="props-add-row-btn" style="flex:1;margin-top:0" data-block-id="${block.id}" data-add-tr="${tag}">
-					<i class="ri-add-line" aria-hidden="true"></i> 행 추가
-				</button>
-				${canRemove ? `<button type="button" class="props-add-row-btn props-table-remove-section-btn" style="margin-top:0;flex:1;color:#c00;border-color:#fcc" data-block-id="${block.id}" data-remove-section="${tag}">${korean} 제거</button>` : ''}
+		return `<div class="props-table-section-wrap">
+			<div class="props-table-outer-heading">
+				<p class="props-section-label props-table-outer-label">${tag}</p>
+				${canRemove ? `<button type="button" class="props-table-title-text-btn props-table-remove-section-btn" data-block-id="${block.id}" data-remove-section="${tag}">사용하지 않기</button>` : ''}
+				${_renderTableSectionAlignControls(block, tag, rows)}
+			</div>
+			<div class="props-table-section-group props-table-section-box">
+				${_renderTableSectionRows(block, tag, rows)}
+				<div class="props-table-bottom-actions">
+					<button type="button" class="props-table-bottom-btn" data-block-id="${block.id}" data-add-tr="${tag}">
+						<i class="ri-add-line" aria-hidden="true"></i> 행 추가
+					</button>
+				</div>
 			</div>
 		</div>`;
 	}).join('');
@@ -1593,7 +1611,13 @@ function renderPropsTableSection(block) {
 	renderPropsTableStructure(block);
 }
 
+function getTableRowsKey(sectionTag) {
+	return sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
+}
+
 let _tableCellPopoverInfo = null;
+let _tableCellDragEventsBound = false;
+let _pendingTableMerge = null;
 
 function openTableCellSpanPopover(cell) {
 	if (document.body.classList.contains('preview-mode')) return;
@@ -1665,6 +1689,184 @@ function applyTableCellSpan() {
 	pushHistory();
 	closeTableCellSpanPopover();
 	render();
+}
+
+function getTableCellDragInfo(cell) {
+	const blockId = cell.dataset.blockId;
+	const cellKey = cell.dataset.editField;
+	const sectionTag = cell.dataset.tableSection;
+	const rowKey = cell.dataset.tableRowKey;
+	const colIdx = parseInt(cell.dataset.tableColIdx, 10);
+	if (!blockId || !cellKey || !sectionTag || !rowKey || Number.isNaN(colIdx)) return null;
+
+	const block = state.blocks.find(b => b.id === blockId);
+	if (!block) return null;
+	const rows = block[getTableRowsKey(sectionTag)] || [];
+	const rowIdx = rows.findIndex(row => row.key === rowKey);
+	if (rowIdx < 0) return null;
+	return { block, blockId, cellKey, sectionTag, rowKey, rowIdx, colIdx };
+}
+
+function clearTableDragRange() {
+	document.querySelectorAll('.is-table-drag-range').forEach(cell => cell.classList.remove('is-table-drag-range'));
+}
+
+function closeTableMergeConfirm(clearRange = true) {
+	const layer = document.getElementById('tableMergeConfirmLayer');
+	if (layer) layer.style.display = 'none';
+	_pendingTableMerge = null;
+	if (clearRange) clearTableDragRange();
+}
+
+function updateTableDragRange(targetCell) {
+	const drag = state.tableCellDrag;
+	const target = targetCell ? getTableCellDragInfo(targetCell) : null;
+	if (!drag || !target) return;
+	if (drag.blockId !== target.blockId || drag.sectionTag !== target.sectionTag) return;
+
+	drag.end = target;
+	drag.moved = drag.moved || drag.start.rowIdx !== target.rowIdx || drag.start.colIdx !== target.colIdx;
+	clearTableDragRange();
+
+	const minRow = Math.min(drag.start.rowIdx, target.rowIdx);
+	const maxRow = Math.max(drag.start.rowIdx, target.rowIdx);
+	const minCol = Math.min(drag.start.colIdx, target.colIdx);
+	const maxCol = Math.max(drag.start.colIdx, target.colIdx);
+	const table = targetCell.closest('table');
+	if (!table) return;
+
+	table.querySelectorAll(`[data-block-id="${CSS.escape(drag.blockId)}"][data-table-section="${drag.sectionTag}"]`).forEach(cell => {
+		const info = getTableCellDragInfo(cell);
+		if (!info) return;
+		if (info.rowIdx >= minRow && info.rowIdx <= maxRow && info.colIdx >= minCol && info.colIdx <= maxCol) {
+			cell.classList.add('is-table-drag-range');
+		}
+	});
+}
+
+function startTableCellDrag(cell, event) {
+	const start = getTableCellDragInfo(cell);
+	if (!start) return;
+	closeTableMergeConfirm(true);
+	state.tableCellDrag = { start, end: start, blockId: start.blockId, sectionTag: start.sectionTag, moved: false };
+	clearTableDragRange();
+	cell.classList.add('is-table-drag-range');
+	event.preventDefault();
+	event.stopPropagation();
+	document.body.classList.add('is-table-cell-dragging');
+	closeTableCellSpanPopover();
+}
+
+function getTableMergeConfirmLayer() {
+	let layer = document.getElementById('tableMergeConfirmLayer');
+	if (layer) return layer;
+
+	layer = document.createElement('div');
+	layer.id = 'tableMergeConfirmLayer';
+	layer.className = 'table-merge-confirm-layer';
+	layer.innerHTML = `
+		<p class="table-merge-confirm-text">선택한 셀을 병합하시겠습니까?</p>
+		<div class="table-merge-confirm-actions">
+			<button type="button" class="table-merge-confirm-btn table-merge-confirm-yes">병합</button>
+			<button type="button" class="table-merge-confirm-btn table-merge-confirm-no">취소</button>
+		</div>
+	`;
+	document.body.appendChild(layer);
+
+	layer.querySelector('.table-merge-confirm-yes').addEventListener('click', () => applyPendingTableMerge());
+	layer.querySelector('.table-merge-confirm-no').addEventListener('click', () => closeTableMergeConfirm(true));
+	return layer;
+}
+
+function positionTableMergeConfirm() {
+	const layer = getTableMergeConfirmLayer();
+	const cells = Array.from(document.querySelectorAll('.is-table-drag-range'));
+	if (!cells.length) return;
+
+	const rects = cells.map(cell => cell.getBoundingClientRect());
+	const left = Math.min(...rects.map(rect => rect.left));
+	const right = Math.max(...rects.map(rect => rect.right));
+	const top = Math.min(...rects.map(rect => rect.top));
+	const bottom = Math.max(...rects.map(rect => rect.bottom));
+
+	layer.style.display = 'block';
+	const lw = layer.offsetWidth;
+	const lh = layer.offsetHeight;
+	let x = left + (right - left) / 2 - lw / 2;
+	let y = top - lh - 8;
+	if (y < 8) y = bottom + 8;
+	x = Math.max(8, Math.min(x, window.innerWidth - lw - 8));
+	y = Math.max(8, Math.min(y, window.innerHeight - lh - 8));
+	layer.style.left = `${x}px`;
+	layer.style.top = `${y}px`;
+}
+
+function openTableMergeConfirm(data) {
+	_pendingTableMerge = data;
+	positionTableMergeConfirm();
+}
+
+function applyPendingTableMerge() {
+	const pending = _pendingTableMerge;
+	if (!pending) return;
+	const { block, rows, minRow, maxRow, minCol, maxCol, topLeftKey, colspan, rowspan } = pending;
+
+	if (!block.cellSpan) block.cellSpan = {};
+	pushHistory();
+	for (let r = minRow; r <= maxRow; r++) {
+		const row = rows[r];
+		if (!row) continue;
+		for (let c = minCol; c <= maxCol; c++) {
+			delete block.cellSpan[`${row.key}_c${c}`];
+		}
+	}
+	block.cellSpan[topLeftKey] = { colspan, rowspan };
+	closeTableMergeConfirm(true);
+	render();
+}
+
+function finishTableCellDrag() {
+	const drag = state.tableCellDrag;
+	if (!drag) return;
+	state.tableCellDrag = null;
+	document.body.classList.remove('is-table-cell-dragging');
+
+	const { start, end, moved } = drag;
+	if (!moved || !end) {
+		clearTableDragRange();
+		return;
+	}
+
+	const minRow = Math.min(start.rowIdx, end.rowIdx);
+	const maxRow = Math.max(start.rowIdx, end.rowIdx);
+	const minCol = Math.min(start.colIdx, end.colIdx);
+	const maxCol = Math.max(start.colIdx, end.colIdx);
+	const colspan = maxCol - minCol + 1;
+	const rowspan = maxRow - minRow + 1;
+	if (colspan === 1 && rowspan === 1) {
+		clearTableDragRange();
+		return;
+	}
+
+	const rows = start.block[getTableRowsKey(start.sectionTag)] || [];
+	const topLeftRow = rows[minRow];
+	if (!topLeftRow) {
+		clearTableDragRange();
+		return;
+	}
+
+	const topLeftKey = `${topLeftRow.key}_c${minCol}`;
+	openTableMergeConfirm({
+		block: start.block,
+		rows,
+		minRow,
+		maxRow,
+		minCol,
+		maxCol,
+		topLeftKey,
+		colspan,
+		rowspan
+	});
 }
 
 function renderPropsTabItems(block) {
@@ -2709,7 +2911,7 @@ function initBlockPropsPanel() {
 			} else if (templateCategories[b.type] === 'table') {
 				const tblSection = document.getElementById('propsTableSection');
 				if (!tblSection || tblSection.style.display === 'none') return;
-				renderPropsTableStructure(b);
+				renderPropsTableSection(b);
 			}
 		});
 		panelObserver.observe(canvasGridEl, { childList: true });
@@ -2797,12 +2999,12 @@ function initBlockPropsPanel() {
 				pushHistory();
 				_addTableSection(block, sectionTag);
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 
 			// 섹션 제거
-			const removeSectionBtn = event.target.closest('.props-table-remove-section-btn');
+			const removeSectionBtn = event.target.closest('.props-table-remove-section-btn, .props-table-remove-section-check');
 			if (removeSectionBtn) {
 				const blockId = removeSectionBtn.dataset.blockId;
 				const sectionTag = removeSectionBtn.dataset.removeSection;
@@ -2811,7 +3013,7 @@ function initBlockPropsPanel() {
 				pushHistory();
 				_removeTableSection(block, sectionTag);
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 
@@ -2825,7 +3027,7 @@ function initBlockPropsPanel() {
 				pushHistory();
 				_addTableRow(block, sectionTag);
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 
@@ -2840,7 +3042,7 @@ function initBlockPropsPanel() {
 				pushHistory();
 				_removeTableRow(block, sectionTag, rowKey);
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 
@@ -2859,7 +3061,7 @@ function initBlockPropsPanel() {
 				pushHistory();
 				row.cellTags[colIdx] = row.cellTags[colIdx] === 'th' ? 'td' : 'th';
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 
@@ -2875,13 +3077,29 @@ function initBlockPropsPanel() {
 				if (!block) return;
 				const rowsKey = sectionTag === 'thead' ? 'tableTheadRows' : sectionTag === 'tfoot' ? 'tableTfootRows' : 'tableTbodyRows';
 				const rows = block[rowsKey] || [];
-				const row = rows.find(r => r.key === rowKey);
-				if (!row) return;
 				pushHistory();
-				const alignProp = cellType === 'th' ? 'thAlign' : 'tdAlign';
-				row[alignProp] = row[alignProp] === align ? '' : align;
+				if (cellType === 'all') {
+					const allActive = rows.length > 0 && rows.every(row => {
+						const thActive = (row.thAlign || '') === align;
+						const tdActive = sectionTag === 'tbody' ? (row.tdAlign || '') === align : true;
+						return thActive && tdActive;
+					});
+					rows.forEach(row => {
+						row.thAlign = allActive ? '' : align;
+						if (sectionTag === 'tbody') row.tdAlign = allActive ? '' : align;
+					});
+				} else if (rowKey === '__all__') {
+					const alignProp = cellType === 'th' ? 'thAlign' : 'tdAlign';
+					const allActive = rows.length > 0 && rows.every(row => (row[alignProp] || '') === align);
+					rows.forEach(row => { row[alignProp] = allActive ? '' : align; });
+				} else {
+					const row = rows.find(r => r.key === rowKey);
+					if (!row) return;
+					const alignProp = cellType === 'th' ? 'thAlign' : 'tdAlign';
+					row[alignProp] = row[alignProp] === align ? '' : align;
+				}
 				render();
-				renderPropsTableStructure(block);
+				renderPropsTableSection(block);
 				return;
 			}
 		});
@@ -4533,9 +4751,13 @@ function renderBuilderBlock(block, idx = 0, total = 1) {
 	if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
 	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.marginLeft, block.marginRight);
 	if (effectiveWidth) blockStyleParts.push(`width:${effectiveWidth}`);
+	const dragHandle = templateCategories[block.type] === 'table'
+		? `<span class="block-drag-handle" data-tooltip="이동" aria-label="블록 이동"><i class="ri-draggable" aria-hidden="true"></i></span>`
+		: '';
 	return `
 		<section class="builder-block" draggable="true" data-block-id="${block.id}" style="${blockStyleParts.join(';')}">
 			<div class="block-controls" aria-hidden="true">
+				${dragHandle}
 				<button type="button" class="block-props-btn" data-tooltip="속성" data-props-block-id="${block.id}" aria-label="블록 속성">
 					<i class="ri-settings-3-line" aria-hidden="true"></i>
 				</button>
@@ -5513,6 +5735,11 @@ function bindRenderedEvents() {
 				event.preventDefault();
 				return;
 			}
+			if (event.target.closest('table [data-edit-field]')) {
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
 			if (event.target.closest('select') || event.target.closest('input') || event.target.closest('button') || event.target.closest('[contenteditable="true"]')) return;
 			if (event.altKey) {
 				state.dragPayload = `copy-block:${block.dataset.blockId}`;
@@ -5618,18 +5845,30 @@ function bindRenderedEvents() {
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
 	});
-	// 테이블 셀 span 팝오버 (단일 클릭)
+	// 테이블 셀 드래그 병합
 	document.querySelectorAll('table [data-edit-field]').forEach(cell => {
-		cell.addEventListener('click', () => {
+		cell.addEventListener('mousedown', event => {
 			if (document.body.classList.contains('preview-mode')) return;
-			clearTimeout(cell._spanPopoverTimer);
-			cell._spanPopoverTimer = setTimeout(() => openTableCellSpanPopover(cell), 200);
+			if (event.button !== 0) return;
+			startTableCellDrag(cell, event);
 		});
-		cell.addEventListener('dblclick', () => {
-			clearTimeout(cell._spanPopoverTimer);
-			closeTableCellSpanPopover();
+		cell.addEventListener('mouseenter', () => {
+			if (!state.tableCellDrag) return;
+			updateTableDragRange(cell);
 		});
+		cell.addEventListener('dragstart', event => event.preventDefault());
 	});
+	if (!_tableCellDragEventsBound) {
+		_tableCellDragEventsBound = true;
+		document.addEventListener('mouseup', finishTableCellDrag);
+		document.addEventListener('mousedown', event => {
+			const layer = document.getElementById('tableMergeConfirmLayer');
+			if (!layer || layer.style.display === 'none') return;
+			if (layer.contains(event.target)) return;
+			if (event.target.closest && event.target.closest('table [data-edit-field]')) return;
+			closeTableMergeConfirm(true);
+		});
+	}
 	// 탭 항목 텍스트 인라인 편집
 	document.querySelectorAll('[data-tab-block-id]').forEach(aEl => {
 		aEl.addEventListener('dblclick', startTabTextEdit);
@@ -7562,7 +7801,7 @@ async function init() {
 	document.getElementById('markupClose').addEventListener('click', closeMarkup);
 	document.getElementById('markupBackdrop').addEventListener('click', closeMarkup);
 	document.addEventListener('keydown', e => {
-		if (e.key === 'Escape') { closeMarkup(); closeTableCellSpanPopover(); }
+		if (e.key === 'Escape') { closeMarkup(); closeTableCellSpanPopover(); closeTableMergeConfirm(true); }
 		if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
 			const active = document.activeElement;
 			if (active?.getAttribute('contenteditable') === 'true') return;

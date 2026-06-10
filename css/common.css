@@ -3227,6 +3227,7 @@ body.preview-mode .list-wrap-placeholder {
 	border: 1px solid #e4e6ea;
 	border-radius: 8px;
 	overflow: hidden;
+	padding: 5px 0;
 }
 
 /* ─ 행 ─ */
@@ -3234,7 +3235,7 @@ body.preview-mode .list-wrap-placeholder {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 8px 12px;
+	padding: 4px 10px;
 	/* border-bottom: 1px solid #e4e6ea; */
 }
 
@@ -3456,6 +3457,51 @@ body.preview-mode .list-wrap-placeholder {
 	padding: 6px 2px 0;
 }
 
+.props-spacing-row {
+	align-items: flex-start;
+	gap: 40px;
+}
+
+.props-spacing-row .props-label {
+	align-self: center;
+	text-align: center;
+}
+
+.props-spacing-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.props-spacing-field {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+	margin-right: 0;
+}
+
+.props-spacing-field span {
+	font-size: 0.48rem;
+	line-height: 1;
+	color: #777;
+	font-weight: 800;
+	text-align: center;
+}
+
+.props-spacing-field .props-input {
+	width: 100%;
+	min-width: 0;
+	text-align: center;
+	padding-inline: 2px;
+}
+
+.props-spacing-field .props-input::-webkit-outer-spin-button,
+.props-spacing-field .props-input::-webkit-inner-spin-button {
+	margin: 0;
+}
+
 /* ── 테이블 속성 패널 ── */
 .props-table-row {
 	padding: 8px 10px;
@@ -3569,6 +3615,435 @@ body.preview-mode .list-wrap-placeholder {
 	background: var(--accent);
 	color: #fff;
 	border-color: var(--accent);
+}
+
+.props-table-section-wrap {
+	margin-top: 0.7rem;
+}
+
+.props-table-outer-label {
+	margin-top: 0;
+}
+
+.props-table-outer-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.props-table-outer-heading .props-table-section-aligns {
+	margin-left: auto;
+}
+
+.props-table-title-text-btn {
+	position: relative;
+	top: -4px;
+	flex-shrink: 0;
+	margin-left: 2px;
+	padding: 0 7px;
+	min-height: 1.25rem;
+	border: 1px solid #f0c8c3;
+	border-radius: 4px;
+	background: #fff;
+	color: #c0362c;
+	font-size: 0.54rem;
+	font-weight: 800;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.props-table-title-text-btn:hover {
+	background: #fff1f0;
+}
+
+.props-table-section-box {
+	padding: 8px;
+	border: 1px solid #e4e7ee;
+	border-radius: 8px;
+	background: #f8f9fb;
+}
+
+.props-table-section-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 7px;
+	min-height: 1.7rem;
+}
+
+.props-table-section-title strong {
+	font-size: 0.7rem;
+	color: #222;
+}
+
+.props-table-section-name {
+	min-width: 2.65rem;
+	font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+	letter-spacing: 0;
+}
+
+.props-table-section-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 2.8rem;
+	height: 1.1rem;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: #edf0f5;
+	color: #555;
+	font-size: 0.52rem;
+	font-weight: 800;
+	letter-spacing: 0;
+}
+
+.props-table-section-count {
+	margin-left: auto;
+	font-size: 0.55rem;
+	color: #888;
+	font-weight: 700;
+}
+
+.props-table-section-title-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	flex-shrink: 0;
+}
+
+.props-table-title-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.25rem;
+	min-height: 1.25rem;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: #fff;
+	color: #555;
+	font-size: 0.6rem;
+	cursor: pointer;
+	padding: 0;
+	line-height: 1;
+}
+
+.props-table-title-action:hover {
+	background: #edf0f5;
+	color: #222;
+}
+
+.props-table-title-action.props-table-remove-section-btn {
+	color: #c0362c;
+	border-color: #f0c8c3;
+}
+
+.block-drag-handle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	min-height: 26px;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 0.8rem;
+	line-height: 1;
+	cursor: grab;
+	padding: 0;
+	flex-shrink: 0;
+}
+
+.block-drag-handle:hover {
+	background: var(--panel-soft);
+	color: var(--accent);
+}
+
+.builder-block.dragging .block-drag-handle {
+	cursor: grabbing;
+}
+
+.props-table-mini {
+	display: grid;
+	gap: 6px;
+}
+
+.props-table-mini-row {
+	border: 1px solid #dfe3ea;
+	border-radius: 7px;
+	background: #fff;
+	overflow: hidden;
+}
+
+.props-table-mini-row-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 5px 6px;
+	background: #f1f3f7;
+	border-bottom: 1px solid #e4e7ee;
+}
+
+.props-table-mini-row-label {
+	font-size: 0.58rem;
+	color: #555;
+	font-weight: 800;
+	flex-shrink: 0;
+	margin-left: 2px;
+}
+
+.props-table-mini-row-head .props-table-row-aligns {
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	justify-content: flex-start;
+	flex-wrap: wrap;
+}
+
+.props-table-section-aligns {
+	position: relative;
+	top: -4px;
+	padding: 0;
+	margin-left: 2px;
+	background: transparent;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+}
+
+.props-table-mini-cells {
+	display: grid;
+	grid-template-columns: repeat(var(--props-table-cols), minmax(0, 1fr));
+	gap: 2px;
+	border-bottom: 1px solid #edf0f5;
+}
+
+.props-table-mini-cell {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	height: 1.6rem;
+	padding: 0 3px;
+	border: 0;
+	border-right: 1px solid #edf0f5;
+	background: #fff;
+	color: #666;
+	font-size: 0.56rem;
+	font-weight: 800;
+	line-height: 1;
+	cursor: default;
+}
+
+.props-table-mini-cell:last-child {
+	border-right: 0;
+}
+
+button.props-table-mini-cell {
+	cursor: pointer;
+}
+
+.props-table-mini-cell.is-th {
+	background: #c0362c;
+	color: #fff;
+	border-right: 0;
+}
+
+.props-table-row-control-cell {
+	background: #f1f3f7;
+	cursor: default;
+}
+
+.props-table-row-control-cell .props-list-row-remove-btn,
+.props-table-row-control-cell .props-table-title-action {
+	width: 1.25rem;
+	min-height: 1.25rem;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: #fff;
+	color: #555;
+	font-size: 0.6rem;
+	padding: 0;
+}
+
+.props-table-row-control-cell .props-list-row-remove-btn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.props-table-add-row-center {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	min-height: 1.6rem;
+	margin: 7px auto 0;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: #fff;
+	color: #555;
+	font-size: 0.7rem;
+	cursor: pointer;
+	padding: 0;
+}
+
+.props-table-add-row-center:hover {
+	background: #edf0f5;
+	color: #222;
+}
+
+.props-table-bottom-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+	margin-top: 7px;
+}
+
+.props-table-bottom-actions .props-table-bottom-btn:only-child {
+	grid-column: 1 / -1;
+}
+
+.props-table-bottom-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	min-height: 1.65rem;
+	padding: 0 8px;
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	background: #fff;
+	color: #444;
+	font-size: 0.58rem;
+	font-weight: 800;
+	line-height: 1;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.props-table-bottom-btn:hover {
+	background: #edf0f5;
+	color: #222;
+}
+
+.props-table-bottom-btn.props-table-remove-section-btn {
+	color: #c0362c;
+	border-color: #f0c8c3;
+}
+
+.props-table-bottom-btn.props-table-remove-section-btn:hover {
+	background: #fff1f0;
+}
+
+.props-table-section-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	min-height: 1.65rem;
+	padding: 0 6px;
+	border: 1px solid #f0c8c3;
+	border-radius: 5px;
+	background: #fff;
+	color: #c0362c;
+	font-size: 0.56rem;
+	font-weight: 800;
+	line-height: 1;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.props-table-section-check input {
+	width: 0.75rem;
+	height: 0.75rem;
+	margin: 0;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.props-table-section-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.35rem;
+	margin-top: 0.4rem;
+}
+
+.props-table-section-actions .props-add-row-btn {
+	margin-top: 0;
+}
+
+.props-table-section-actions .props-add-row-btn:only-child {
+	grid-column: 1 / -1;
+}
+
+.props-table-remove-section-btn {
+	color: #c0362c;
+	border-color: #f0c8c3;
+	background: #fff;
+}
+
+.props-table-section-empty .props-add-row-btn {
+	margin-top: 0;
+}
+
+.tbl-st > table th.is-table-drag-range,
+.tbl-st > table td.is-table-drag-range {
+	position: relative;
+	outline: none;
+	background-color: #f4f5f9 !important;
+	color: inherit !important;
+	box-shadow: none;
+}
+
+body.is-table-cell-dragging {
+	user-select: none;
+	cursor: cell;
+}
+
+.table-merge-confirm-layer {
+	display: none;
+	position: fixed;
+	z-index: 9998;
+	width: 188px;
+	padding: 10px;
+	border: 1px solid #dfe3ea;
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+}
+
+.table-merge-confirm-text {
+	margin: 0 0 8px;
+	font-size: 0.65rem;
+	font-weight: 700;
+	line-height: 1.35;
+	color: #222;
+	text-align: center;
+}
+
+.table-merge-confirm-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+}
+
+.table-merge-confirm-btn {
+	min-height: 1.55rem;
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	background: #fff;
+	color: #444;
+	font-size: 0.62rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.table-merge-confirm-yes {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #fff;
 }
 
 /* ── 테이블 셀 span 팝오버 ─────────────────── */
