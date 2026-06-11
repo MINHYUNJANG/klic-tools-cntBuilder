@@ -594,15 +594,21 @@ function loadTemplateCss(htmlPath) {
 	const cssPath = getTemplateCssPath(htmlPath);
 	if (loadedTemplateStyles.has(cssPath)) return loadedTemplateStyles.get(cssPath);
 
-	const promise = new Promise(resolve => {
-		const link = document.createElement('link');
-		link.rel = 'stylesheet';
-		link.href = cssPath;
-		link.dataset.templateStyle = cssPath;
-		link.addEventListener('load', resolve, { once: true });
-		link.addEventListener('error', resolve, { once: true });
-		document.head.appendChild(link);
-	});
+	// fetch로 존재 여부를 확인 후 주입 — <link> 직접 삽입 시 404가 콘솔 에러로 출력되는 문제 방지
+	const promise = fetch(cssPath)
+		.then(res => {
+			if (!res.ok) return; // style.css 없는 템플릿은 조용히 건너뜀
+			return res.text();
+		})
+		.then(css => {
+			if (!css || !css.trim()) return;
+			const style = document.createElement('style');
+			style.setAttribute('data-template-style', cssPath);
+			style.textContent = css;
+			document.head.appendChild(style);
+		})
+		.catch(() => {});
+
 	loadedTemplateStyles.set(cssPath, promise);
 	return promise;
 }
@@ -621,7 +627,9 @@ async function loadHtmlTemplate(path) {
 	const name = element.dataset.templateName || id;
 	element.dataset.templateId = id;
 	normalizeTemplateAssetPaths(element);
-	const [, config] = await Promise.all([loadTemplateCss(path), loadTemplateConfig(path)]);
+	// data-has-style="true" 가 있는 템플릿만 style.css 요청 — 없는 템플릿(design_block 등)은 요청 자체를 생략
+	const cssLoad = element.dataset.hasStyle === 'true' ? loadTemplateCss(path) : Promise.resolve();
+	const [, config] = await Promise.all([cssLoad, loadTemplateConfig(path)]);
 
 	const addRowWrap = element.querySelector('.add-row-wrap') || element;
 	const autoDirection = addRowWrap === element ? 'row' : 'column';
@@ -2546,8 +2554,13 @@ function initNlInlineToolbar() {
 
 	// 툴바 클릭 시 contenteditable 포커스/선택 영역이 해제되지 않도록 방지
 	// input/select는 예외 처리 (포커스 받아야 입력/선택 가능)
+	// _nlToolbarActive 플래그로 finishTextEdit(render)가 조작 도중 실행되지 않게 방지
 	toolbar.addEventListener('mousedown', e => {
-		if (e.target.closest('input, select')) return;
+		_nlToolbarActive = true;
+		if (e.target.closest('input, select')) {
+			saveRange();
+			return;
+		}
 		e.preventDefault();
 	});
 
@@ -2605,6 +2618,7 @@ function initNlInlineToolbar() {
 	function hideToolbar() {
 		toolbar.style.display = 'none';
 		_savedRange = null;
+		_nlToolbarActive = false;
 	}
 
 	function isInNlContent(node) {
@@ -2691,6 +2705,19 @@ function initNlInlineToolbar() {
 
 	// 크기/굵기 적용 버튼
 	document.getElementById('nlItbApplySize')?.addEventListener('click', applyInlineToolbarAndClose);
+
+	// select 변경 즉시 적용: select 선택 시 포커스가 이동해 선택 영역이 시각적으로 해제되므로
+	// change 이벤트에서 바로 스타일을 적용해 "적용" 버튼 클릭 없이도 동작하게 함
+	sizeSelect?.addEventListener('change', () => {
+		if (!sizeSelect.value) return;
+		if (!restoreRange()) return;
+		applySpanStyle({ fontSize: `${sizeSelect.value}px` });
+	});
+
+	weightSelect?.addEventListener('change', () => {
+		if (!restoreRange()) return;
+		applySpanStyle({ fontWeight: weightSelect.value });
+	});
 
 	// 서식 초기화: 선택 영역의 span 인라인 스타일 제거
 	document.getElementById('nlItbReset')?.addEventListener('click', () => {
@@ -6839,7 +6866,7 @@ function handleEditKeydown(event) {
 }
 
 function finishTextEdit(event) {
-	if (_colorPickerOpen) {
+	if (_colorPickerOpen || _nlToolbarActive) {
 		event.currentTarget.addEventListener('blur', finishTextEdit, { once: true });
 		return;
 	}
@@ -8019,6 +8046,7 @@ let _savedRange = null;
 let _savedEditTarget = null;
 let _colorPickerOpen = false;
 let _toolbarPinned = false; // 닫기버튼 클릭 전까지 툴바 고정
+let _nlToolbarActive = false; // nlInlineToolbar 조작 중 finishTextEdit(render) 지연 플래그
 
 function createFormatToolbar() {
 	const el = document.createElement('div');
