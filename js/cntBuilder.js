@@ -1457,8 +1457,10 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 		// thead: always th; tfoot/tbody: respect per-cell cellTags
 		const cellTag = sectionTag === 'thead' ? 'th' : (rowData.cellTags?.[c] || (sectionTag === 'tfoot' ? 'th' : 'td'));
 		const alignVal = (rowData.cellAligns?.[c]) ?? (cellTag === 'th' ? (rowData.thAlign || '') : (rowData.tdAlign || ''));
+		const vAlignVal = rowData.cellVAligns?.[c];
 		const cell = document.createElement(cellTag);
 		if (alignVal) cell.className = alignVal;
+		if (vAlignVal) cell.style.verticalAlign = vAlignVal;
 		if (cellTag === 'th') cell.setAttribute('scope', sectionTag === 'thead' ? 'col' : 'row');
 		const span = cellSpan[cellKey];
 		if (span?.colspan > 1) cell.setAttribute('colspan', String(span.colspan));
@@ -2021,6 +2023,23 @@ function alignTableSelection(align) {
 	render();
 }
 
+function valignTableSelection(valign) {
+	const selection = _tableSelection;
+	if (!selection) return;
+	const { rows, minRow, maxRow, minCol, maxCol } = selection;
+	pushHistory();
+	for (let r = minRow; r <= maxRow; r++) {
+		const row = rows[r];
+		if (!row) continue;
+		if (!row.cellVAligns) row.cellVAligns = {};
+		for (let c = minCol; c <= maxCol; c++) {
+			row.cellVAligns[c] = valign;
+		}
+	}
+	closeTableContextMenu(false);
+	render();
+}
+
 function getTableContextMenu() {
 	let menu = document.getElementById('tableContextMenu');
 	if (menu) return menu;
@@ -2036,6 +2055,11 @@ function getTableContextMenu() {
 				<button type="button" data-table-menu-align="ac" title="가운데"><i class="ri-align-center" aria-hidden="true"></i></button>
 				<button type="button" data-table-menu-align="ar" title="오른쪽"><i class="ri-align-right" aria-hidden="true"></i></button>
 			</div>
+			<div class="table-context-aligns">
+				<button type="button" data-table-menu-valign="top" title="위"><i class="ri-align-top" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-valign="middle" title="세로 가운데"><i class="ri-align-vertically" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-valign="bottom" title="아래"><i class="ri-align-bottom" aria-hidden="true"></i></button>
+			</div>
 		</div>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="merge">셀 합치기</button>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="split">셀 나누기</button>
@@ -2048,6 +2072,11 @@ function getTableContextMenu() {
 		const alignBtn = event.target.closest('[data-table-menu-align]');
 		if (alignBtn) {
 			alignTableSelection(alignBtn.dataset.tableMenuAlign);
+			return;
+		}
+		const valignBtn = event.target.closest('[data-table-menu-valign]');
+		if (valignBtn) {
+			valignTableSelection(valignBtn.dataset.tableMenuValign);
 			return;
 		}
 		const actionBtn = event.target.closest('[data-table-menu-action]');
