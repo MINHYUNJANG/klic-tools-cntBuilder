@@ -1715,8 +1715,10 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 		// thead: always th; tfoot/tbody: respect per-cell cellTags
 		const cellTag = sectionTag === 'thead' ? 'th' : (rowData.cellTags?.[c] || (sectionTag === 'tfoot' ? 'th' : 'td'));
 		const alignVal = (rowData.cellAligns?.[c]) ?? (cellTag === 'th' ? (rowData.thAlign || '') : (rowData.tdAlign || ''));
+		const vAlignVal = rowData.cellVAligns?.[c];
 		const cell = document.createElement(cellTag);
 		if (alignVal) cell.className = alignVal;
+		if (vAlignVal) cell.style.verticalAlign = vAlignVal;
 		if (cellTag === 'th') cell.setAttribute('scope', sectionTag === 'thead' ? 'col' : 'row');
 		const span = cellSpan[cellKey];
 		if (span?.colspan > 1) cell.setAttribute('colspan', String(span.colspan));
@@ -2279,6 +2281,23 @@ function alignTableSelection(align) {
 	render();
 }
 
+function valignTableSelection(valign) {
+	const selection = _tableSelection;
+	if (!selection) return;
+	const { rows, minRow, maxRow, minCol, maxCol } = selection;
+	pushHistory();
+	for (let r = minRow; r <= maxRow; r++) {
+		const row = rows[r];
+		if (!row) continue;
+		if (!row.cellVAligns) row.cellVAligns = {};
+		for (let c = minCol; c <= maxCol; c++) {
+			row.cellVAligns[c] = valign;
+		}
+	}
+	closeTableContextMenu(false);
+	render();
+}
+
 function getTableContextMenu() {
 	let menu = document.getElementById('tableContextMenu');
 	if (menu) return menu;
@@ -2294,6 +2313,11 @@ function getTableContextMenu() {
 				<button type="button" data-table-menu-align="ac" title="가운데"><i class="ri-align-center" aria-hidden="true"></i></button>
 				<button type="button" data-table-menu-align="ar" title="오른쪽"><i class="ri-align-right" aria-hidden="true"></i></button>
 			</div>
+			<div class="table-context-aligns">
+				<button type="button" data-table-menu-valign="top" title="위"><i class="ri-align-top" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-valign="middle" title="세로 가운데"><i class="ri-align-vertically" aria-hidden="true"></i></button>
+				<button type="button" data-table-menu-valign="bottom" title="아래"><i class="ri-align-bottom" aria-hidden="true"></i></button>
+			</div>
 		</div>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="merge">셀 합치기</button>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="split">셀 나누기</button>
@@ -2306,6 +2330,11 @@ function getTableContextMenu() {
 		const alignBtn = event.target.closest('[data-table-menu-align]');
 		if (alignBtn) {
 			alignTableSelection(alignBtn.dataset.tableMenuAlign);
+			return;
+		}
+		const valignBtn = event.target.closest('[data-table-menu-valign]');
+		if (valignBtn) {
+			valignTableSelection(valignBtn.dataset.tableMenuValign);
 			return;
 		}
 		const actionBtn = event.target.closest('[data-table-menu-action]');
@@ -5397,9 +5426,16 @@ function renderBuilderBlock(block, idx = 0, total = 1) {
 	const effectiveMarginBottom = (total <= 1 || idx === total - 1) ? 0 : (block.marginBottom ?? 10);
 	const blockStyleParts = [`margin-bottom:${effectiveMarginBottom}px`];
 	if (block.marginTop) blockStyleParts.push(`margin-top:${block.marginTop}px`);
-	if (block.marginLeft) blockStyleParts.push(`margin-left:${block.marginLeft}px`);
-	if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
-	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.marginLeft, block.marginRight);
+	if (block.blockAlign === 'ac') {
+		blockStyleParts.push('margin-left:auto', 'margin-right:auto');
+	} else if (block.blockAlign === 'ar') {
+		blockStyleParts.push('margin-left:auto');
+		if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
+	} else {
+		if (block.marginLeft) blockStyleParts.push(`margin-left:${block.marginLeft}px`);
+		if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
+	}
+	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.blockAlign ? 0 : block.marginLeft, block.blockAlign ? 0 : block.marginRight);
 	if (effectiveWidth) blockStyleParts.push(`width:${effectiveWidth}`);
 	const dragHandle = templateCategories[block.type] === 'table'
 		? `<span class="block-drag-handle" data-tooltip="이동" aria-label="블록 이동"><i class="ri-draggable" aria-hidden="true"></i></span>`
@@ -5671,7 +5707,7 @@ function _renderBlockExportHtml(block) {
 	return el instanceof Element ? elementToHtml(el) : String(el);
 }
 
-function buildColumnBlock(template, block, editable) {
+function buildColumnBlock(template, block, editable, innerTableEditable = false) {
 	const outer = template.element.cloneNode(true);
 	Array.from(outer.attributes).forEach(attr => {
 		if (attr.name.startsWith('data-template-') || attr.name.startsWith('data-style-')) {
@@ -5700,7 +5736,7 @@ function buildColumnBlock(template, block, editable) {
 			if (addRowWrapEl.contains(field)) return;
 			const fieldName = field.dataset.editField;
 			setFieldContent(field, (block.items[0] || {})[fieldName] || '');
-			if (editable) {
+			if (editable || innerTableEditable) {
 				field.dataset.blockId = block.id;
 				field.dataset.columnIndex = '0';
 			} else {
@@ -5714,21 +5750,21 @@ function buildColumnBlock(template, block, editable) {
 			el.querySelectorAll('[data-edit-field]').forEach(field => {
 				const fieldName = field.dataset.editField;
 				setFieldContent(field, item[fieldName] || '');
-				if (editable) {
+				if (editable || innerTableEditable) {
 					field.dataset.blockId = block.id;
 					field.dataset.columnIndex = String(idx);
 				} else {
 					field.removeAttribute('data-edit-field');
 				}
 			});
-			if (!editable) stripEditorAttributes(el);
+			if (!editable && !innerTableEditable) stripEditorAttributes(el);
 			return elementToHtml(el);
 		}).join('');
 	} else {
 		outer.querySelectorAll('[data-edit-field]').forEach(field => {
 			const fieldName = field.dataset.editField;
 			setFieldContent(field, (block.items[0] || {})[fieldName] || '');
-			if (editable) {
+			if (editable || innerTableEditable) {
 				field.dataset.blockId = block.id;
 				field.dataset.columnIndex = '0';
 			} else {
@@ -6155,7 +6191,7 @@ function buildColumnBlock(template, block, editable) {
 		});
 	}
 
-	if (!editable) stripEditorAttributes(outer);
+	if (!editable && !innerTableEditable) stripEditorAttributes(outer);
 	return editable ? elementToHtml(outer) : outer;
 }
 
@@ -6570,8 +6606,8 @@ function bindRenderedEvents() {
 	document.querySelectorAll('[data-edit-field]').forEach(field => {
 		field.addEventListener('dblclick', startTextEdit);
 	});
-	// 테이블 셀 드래그 선택 + 우클릭 메뉴
-	document.querySelectorAll('table th[data-edit-field], table td[data-edit-field]').forEach(cell => {
+	// 테이블 셀 드래그 선택 + 우클릭 메뉴 (data-table-section이 있는 실제 셀만 대상)
+	document.querySelectorAll('table [data-table-section]').forEach(cell => {
 		cell.addEventListener('mousedown', event => {
 			if (document.body.classList.contains('preview-mode')) return;
 			if (event.button !== 0) return;
@@ -7188,6 +7224,7 @@ function startTextEdit(event) {
 	if (document.body.classList.contains('preview-mode')) return;
 	const field = event.currentTarget;
 	if (field.dataset.editField === 'icon') return;
+	if (field.dataset.cellBlockZone) return;
 	event.stopPropagation();
 	field._editOriginalHtml = field.innerHTML;
 	field.setAttribute('contenteditable', 'true');
@@ -7277,7 +7314,7 @@ function finishTextEdit(event) {
 	field.removeAttribute('contenteditable');
 	if (field._editCancelled) return;
 	const columnIndex = Number(field.dataset.columnIndex);
-	// 혼합 내부 블록 / title-list list-wrap 참조 여부 확인
+	// 혼합 내부 블록 / title-list list-wrap / 테이블 셀 내부 블록 참조 여부 확인
 	const targetItems = getEditTargetItems(field.dataset.blockId);
 	if (!targetItems || !targetItems[columnIndex]) return;
 	const html = field.innerHTML;
