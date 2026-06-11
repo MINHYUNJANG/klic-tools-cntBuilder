@@ -550,55 +550,6 @@
 					</button>
 				</div>
 
-				<!-- 가정통신문 폰트 속성 패널 -->
-				<div class="props-section" id="propsNewsletterFontSection" style="display:none">
-					<p class="props-section-label" data-help="가정통신문 본문 영역의 기본 폰트를 설정합니다. 개별 블록에서 별도 지정 시 해당 블록에 우선 적용됩니다.">본문 기본 스타일</p>
-					<div class="props-card">
-						<div class="props-row">
-							<span class="props-label">폰트</span>
-							<select class="props-select" id="propNlFontFamily">
-								<option value="">기본 (Pretendard)</option>
-								<option value="'Noto Sans KR', sans-serif">Noto Sans KR</option>
-								<option value="'Malgun Gothic', '맑은 고딕', sans-serif">맑은 고딕</option>
-								<option value="'Nanum Gothic', sans-serif">나눔고딕</option>
-								<option value="'Nanum Myeongjo', serif">나눔명조</option>
-							</select>
-						</div>
-						<!-- <div class="props-row">
-							<span class="props-label">본문 크기</span>
-							<input type="number" class="props-input" id="propNlFontSize" min="10" max="24" step="1" placeholder="15" style="width:4rem">
-						</div> -->
-						<div class="props-row">
-							<span class="props-label">줄 간격</span>
-							<select class="props-select" id="propNlLineHeight">
-								<option value="">기본 (1.9)</option>
-								<option value="1.5">1.5</option>
-								<option value="1.7">1.7</option>
-								<option value="2.0">2.0</option>
-								<option value="2.2">2.2</option>
-							</select>
-						</div>
-						<!-- <div class="props-row">
-							<span class="props-label">굵기</span>
-							<select class="props-select" id="propNlFontWeight">
-								<option value="">기본</option>
-								<option value="300">얇게 (300)</option>
-								<option value="400">보통 (400)</option>
-								<option value="500">중간 (500)</option>
-								<option value="700">굵게 (700)</option>
-							</select>
-						</div>
-						<div class="props-row props-row--last">
-							<span class="props-label">블록 간격</span>
-							<input type="number" class="props-input" id="propNlBlockGap" min="0" max="80" step="2" placeholder="12" style="width:4rem">
-							<span class="props-unit">px</span>
-						</div> -->
-					</div>
-					<button type="button" class="props-add-row-btn" id="propsApplyNlFont">
-						<i class="ri-check-line" aria-hidden="true"></i> 적용
-					</button>
-				</div>
-
 
 				<div class="props-section" id="propsDiscloserSection" style="display:none">
 				<p class="props-section-label">Discloser 설정</p>
@@ -693,21 +644,40 @@
 	<!-- 가정통신문 인라인 텍스트 서식 툴바 -->
 	<div id="nlInlineToolbar" class="nl-inline-toolbar" role="toolbar" aria-label="텍스트 서식">
 		<label class="nl-itb-item" title="글자 색상">
-			<i class="ri-font-color" aria-hidden="true"></i>
+			<span>글자</span>
 			<input type="color" id="nlItbColor" value="#222222">
 		</label>
 		<div class="nl-itb-sep"></div>
-		<div class="nl-itb-size-wrap" id="nlItbSizeWrap" title="클릭 후 숫자 입력">
-			<span class="nl-itb-size-display" id="nlItbSizeDisplay">—</span>
+		<label class="nl-itb-select-wrap" title="폰트 크기">
+			<select id="nlItbSize" aria-label="폰트 크기">
+				<option value="">-</option>
+				<option value="14">14</option>
+				<option value="15">15</option>
+				<option value="16">16</option>
+				<option value="18">18</option>
+				<option value="20">20</option>
+				<option value="22">22</option>
+				<option value="24">24</option>
+				<option value="26">26</option>
+			</select>
 			<span class="nl-itb-unit">px</span>
-		</div>
-		<button type="button" class="nl-itb-btn" id="nlItbApplySize" title="크기 적용 (Enter)">
-			<i class="ri-check-line" aria-hidden="true"></i>
-		</button>
+		</label>
 		<div class="nl-itb-sep"></div>
-		<button type="button" class="nl-itb-btn" id="nlItbBold" title="굵게"><b>B</b></button>
+		<label class="nl-itb-select-wrap" title="굵기">
+			<span>굵기</span>
+			<select id="nlItbWeight" aria-label="굵기">
+				<option value="400">R</option>
+				<option value="500">M</option>
+				<option value="700">B</option>
+				<option value="800">E</option>
+			</select>
+		</label>
 		<button type="button" class="nl-itb-btn nl-itb-reset" id="nlItbReset" title="서식 초기화">
 			<i class="ri-format-clear" aria-hidden="true"></i>
+		</button>
+		<button type="button" class="nl-itb-btn nl-itb-apply" id="nlItbApplySize" title="서식 적용 (Enter)">
+			<i class="ri-check-line" aria-hidden="true"></i>
+			<span>적용</span>
 		</button>
 	</div>
 

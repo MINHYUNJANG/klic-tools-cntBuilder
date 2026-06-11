@@ -64,8 +64,7 @@ const state = {
 	overlays: [],
 	customDecorations: [],
 	undoStack: [],
-	previewDevice: 'pc',
-	newsletterStyle: { fontFamily: '', fontSize: '', lineHeight: '', fontWeight: '', blockGap: '' }
+	previewDevice: 'pc'
 };
 
 // 꾸밈 스튜디오 필터 목록
@@ -201,6 +200,52 @@ function resolveTableCellInnerRef(blockId) {
 	const innerBlockData = outerBlock.tableCellInnerBlocks?.[cellKey];
 	if (!innerBlockData) return null;
 	return { outerBlock, innerBlockData, cellKey };
+}
+
+function getTableCellSlotKeys(block, cellKey) {
+	if (!block?.tableCellBlockZones?.[cellKey]) return [];
+	const keys = [cellKey];
+	const extraKeys = Object.keys(block.tableCellBlockZones)
+		.filter(key => key.startsWith(`${cellKey}__slot`))
+		.sort((a, b) => Number(a.match(/__slot(\d+)$/)?.[1] || 0) - Number(b.match(/__slot(\d+)$/)?.[1] || 0));
+	return keys.concat(extraKeys);
+}
+
+function getNextTableCellSlotKey(block, cellKey) {
+	const keys = getTableCellSlotKeys(block, cellKey);
+	let next = 1;
+	keys.forEach(key => {
+		const n = Number(key.match(/__slot(\d+)$/)?.[1] || 0);
+		if (n >= next) next = n + 1;
+	});
+	return `${cellKey}__slot${next}`;
+}
+
+function clearTableCellBlockZone(block, cellKey) {
+	getTableCellSlotKeys(block, cellKey).forEach(slotKey => {
+		delete block.tableCellBlockZones?.[slotKey];
+		if (block.tableCellInnerBlocks?.[slotKey]) delete block.tableCellInnerBlocks[slotKey];
+	});
+}
+
+function getEditTargetItems(blockId) {
+	const mixRef = resolveMixInnerRef(blockId);
+	if (mixRef) return mixRef.innerBlock.items;
+	const listRef = resolveListInnerRef(blockId);
+	if (listRef) return listRef.listBlock.items;
+	const tableCellRef = resolveTableCellInnerRef(blockId);
+	if (tableCellRef) return tableCellRef.innerBlockData.items;
+	return state.blocks.find(b => b.id === blockId)?.items;
+}
+
+function resolveEditableBlockData(blockId) {
+	const block = state.blocks.find(b => b.id === blockId);
+	if (block) return block;
+	const mixRef = resolveMixInnerRef(blockId);
+	if (mixRef) return mixRef.innerBlock;
+	const tcellRef = resolveTableCellInnerRef(blockId);
+	if (tcellRef) return tcellRef.innerBlockData;
+	return null;
 }
 
 function resolveBlockForRows(blockId) {
@@ -880,6 +925,12 @@ function showPlacementToast(message, type = 'error') {
 	}
 	toast.className = `placement-toast placement-toast--${type}`;
 	toast.textContent = message;
+	const canvas = document.querySelector('.canvas-wrapper');
+	if (canvas) {
+		const rect = canvas.getBoundingClientRect();
+		toast.style.left = `${rect.left + rect.width / 2}px`;
+		toast.style.top = `${rect.top + rect.height / 2}px`;
+	}
 	toast.classList.add('is-visible');
 	clearTimeout(_placementToastTimer);
 	_placementToastTimer = setTimeout(() => toast.classList.remove('is-visible'), 3000);
@@ -1344,6 +1395,48 @@ function _computeTableHiddenCells(block, rows) {
 	return hiddenCells;
 }
 
+function renderTableCellBlockSlots(cell, block, cellKey, editable) {
+	getTableCellSlotKeys(block, cellKey).forEach(slotKey => {
+		const innerBlockData = block.tableCellInnerBlocks?.[slotKey];
+		if (innerBlockData) {
+			const innerTemplate = componentTemplates[innerBlockData.type];
+			if (!innerTemplate) return;
+			const isListInner = templateCategories[innerBlockData.type] === 'list';
+			const fakeBlock = { ...innerBlockData, id: `${block.id}::tcell::${slotKey}`, type: innerBlockData.type, columns: innerBlockData.columns || innerBlockData.items?.length || 1, items: innerBlockData.items };
+			const zoneEl = document.createElement('div');
+			zoneEl.className = 'table-cell-block-zone has-block';
+			zoneEl.style.marginBottom = `${innerBlockData.marginBottom ?? 0}px`;
+			if (editable) {
+				const propsHtml = isListInner
+					? `<button type="button" class="table-cell-inner-props inner-block-btn inner-block-btn--props" data-tcell-inner-props-id="${escapeAttr(`${block.id}::tcell::${slotKey}`)}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
+					: '';
+				const removeHtml = `<button type="button" class="table-cell-inner-remove inner-block-btn inner-block-btn--remove" data-block-id="${escapeAttr(block.id)}" data-cell-key="${escapeAttr(slotKey)}" title="블록 제거"><i class="ri-close-line"></i></button>`;
+				zoneEl.insertAdjacentHTML('afterbegin', _innerBlockActionsHtml(propsHtml, removeHtml));
+			}
+			let innerEl;
+			if (isListInner && fakeBlock.items[0]?.rows) {
+				innerEl = renderListDynamically(fakeBlock, fakeBlock.items[0], 0, innerTemplate.element, editable);
+			} else {
+				innerEl = buildColumnBlock(innerTemplate, fakeBlock, editable);
+			}
+			if (typeof innerEl === 'string') { zoneEl.innerHTML += innerEl; }
+			else { zoneEl.appendChild(innerEl); }
+			cell.appendChild(zoneEl);
+			return;
+		}
+
+		const zoneEl = document.createElement('div');
+		zoneEl.className = 'table-cell-block-zone is-empty';
+		if (editable) {
+			zoneEl.dataset.cellBlockZone = 'true';
+			zoneEl.dataset.blockId = block.id;
+			zoneEl.dataset.cellKey = slotKey;
+		}
+		zoneEl.innerHTML = '<div class="mix-slot-placeholder"><i class="ri-add-circle-line"></i> 디자인 블록을 드래그해서 넣으세요.</div>';
+		cell.appendChild(zoneEl);
+	});
+}
+
 function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) {
 	const tr = document.createElement('tr');
 	const colCount = block.tableColCount || 4;
@@ -1370,41 +1463,8 @@ function _buildTableTr(block, item, rowData, sectionTag, editable, hiddenCells) 
 			cell.dataset.cellKey = cellKey;
 		}
 
-		const innerBlockData = block.tableCellInnerBlocks?.[cellKey];
-		if (isBlockZone && innerBlockData) {
-			const innerTemplate = componentTemplates[innerBlockData.type];
-			if (innerTemplate) {
-				const isListInner = templateCategories[innerBlockData.type] === 'list';
-				const fakeBlock = { id: `${block.id}::tcell::${cellKey}`, type: innerBlockData.type, columns: innerBlockData.items?.length || 1, items: innerBlockData.items };
-				const zoneEl = document.createElement('div');
-				zoneEl.className = 'table-cell-block-zone has-block';
-				if (editable) {
-					const propsHtml = isListInner
-						? `<button type="button" class="table-cell-inner-props inner-block-btn inner-block-btn--props" data-tcell-inner-props-id="${escapeAttr(`${block.id}::tcell::${cellKey}`)}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
-						: '';
-					const removeHtml = `<button type="button" class="table-cell-inner-remove inner-block-btn inner-block-btn--remove" data-block-id="${escapeAttr(block.id)}" data-cell-key="${escapeAttr(cellKey)}" title="블록 제거"><i class="ri-close-line"></i></button>`;
-					zoneEl.insertAdjacentHTML('afterbegin', _innerBlockActionsHtml(propsHtml, removeHtml));
-				}
-				let innerEl;
-				if (isListInner && fakeBlock.items[0]?.rows) {
-					innerEl = renderListDynamically(fakeBlock, fakeBlock.items[0], 0, innerTemplate.element, false);
-				} else {
-					innerEl = buildColumnBlock(innerTemplate, fakeBlock, false, editable);
-				}
-				if (typeof innerEl === 'string') { zoneEl.innerHTML += innerEl; }
-				else { zoneEl.appendChild(innerEl); }
-				cell.appendChild(zoneEl);
-			}
-		} else if (isBlockZone) {
-			const zoneEl = document.createElement('div');
-			zoneEl.className = 'table-cell-block-zone is-empty';
-			if (editable) {
-				zoneEl.dataset.cellBlockZone = 'true';
-				zoneEl.dataset.blockId = block.id;
-				zoneEl.dataset.cellKey = cellKey;
-			}
-			zoneEl.innerHTML = '<div class="mix-slot-placeholder"><i class="ri-add-circle-line"></i> 디자인 블록을 드래그해서 넣으세요.</div>';
-			cell.appendChild(zoneEl);
+		if (isBlockZone) {
+			renderTableCellBlockSlots(cell, block, cellKey, editable);
 		} else {
 			cell.innerHTML = item[cellKey] || '';
 		}
@@ -1701,6 +1761,7 @@ function getTableRowsKey(sectionTag) {
 let _tableCellPopoverInfo = null;
 let _tableCellDragEventsBound = false;
 let _tableSelection = null;
+let _tableContextTarget = null;
 
 function openTableCellSpanPopover(cell) {
 	if (document.body.classList.contains('preview-mode')) return;
@@ -1799,6 +1860,7 @@ function closeTableContextMenu(clearSelection = false) {
 	if (menu) menu.style.display = 'none';
 	if (clearSelection) {
 		_tableSelection = null;
+		_tableContextTarget = null;
 		clearTableDragRange();
 	}
 }
@@ -1858,6 +1920,8 @@ function startTableCellDrag(cell, event) {
 	const start = getTableCellDragInfo(cell);
 	if (!start) return;
 	closeTableContextMenu(false);
+	_tableSelection = null;
+	_tableContextTarget = null;
 	state.tableCellDrag = { start, end: start, blockId: start.blockId, sectionTag: start.sectionTag, moved: false };
 	clearTableDragRange();
 	cell.classList.add('is-table-drag-range');
@@ -1893,6 +1957,43 @@ function splitTableCell(selection = _tableSelection) {
 	delete selection.block.cellSpan[selection.topLeftKey];
 	closeTableContextMenu(true);
 	render();
+}
+
+function addTableBlockDropZone(selection = _tableSelection) {
+	if (!selection || selection.sectionTag !== 'tbody') return;
+	if (_tableContextTarget && _tableContextTarget.blockId === selection.blockId && _tableContextTarget.sectionTag === selection.sectionTag) {
+		selection = getTableSelectionBounds(_tableContextTarget, _tableContextTarget) || selection;
+	}
+	const { block, rows, minRow, maxRow, minCol, maxCol } = selection;
+	if (!block.tableCellBlockZones) block.tableCellBlockZones = {};
+	if (!block.tableCellInnerBlocks) block.tableCellInnerBlocks = {};
+	const pendingSlots = [];
+	let hasEmptyWarning = false;
+	for (let r = minRow; r <= maxRow; r++) {
+		const row = rows[r];
+		if (!row) continue;
+		for (let c = minCol; c <= maxCol; c++) {
+			const cellTag = row.cellTags?.[c] || 'td';
+			if (cellTag !== 'td') continue;
+			const cellKey = `${row.key}_c${c}`;
+			if (!block.tableCellBlockZones[cellKey]) continue;
+			const slotKeys = getTableCellSlotKeys(block, cellKey);
+			const hasEmptySlot = slotKeys.some(slotKey => !block.tableCellInnerBlocks?.[slotKey]);
+			const hasFilledSlot = slotKeys.some(slotKey => !!block.tableCellInnerBlocks?.[slotKey]);
+			if (hasEmptySlot || !hasFilledSlot) { hasEmptyWarning = true; continue; }
+			pendingSlots.push(getNextTableCellSlotKey(block, cellKey));
+		}
+	}
+	if (!pendingSlots.length) {
+		if (hasEmptyWarning) showPlacementToast('비어 있는 슬롯에 먼저 디자인 블록을 추가해 주세요.', 'error');
+		closeTableContextMenu(false);
+		return;
+	}
+	pushHistory();
+	pendingSlots.forEach(slotKey => { block.tableCellBlockZones[slotKey] = true; });
+	closeTableContextMenu(false);
+	render();
+	renderPropsTableSection(block);
 }
 
 function alignTableSelection(align) {
@@ -1931,6 +2032,7 @@ function getTableContextMenu() {
 		<button type="button" class="table-context-menu-item" data-table-menu-action="merge">셀 합치기</button>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="split">셀 나누기</button>
 		<button type="button" class="table-context-menu-item" data-table-menu-action="block-zone">디자인블록으로 변경</button>
+		<button type="button" class="table-context-menu-item" data-table-menu-action="add-block-zone">디자인 블록 추가</button>
 	`;
 	document.body.appendChild(menu);
 
@@ -1944,6 +2046,7 @@ function getTableContextMenu() {
 		if (!actionBtn || actionBtn.disabled) return;
 		if (actionBtn.dataset.tableMenuAction === 'merge') applyTableMerge();
 		if (actionBtn.dataset.tableMenuAction === 'split') splitTableCell();
+		if (actionBtn.dataset.tableMenuAction === 'add-block-zone') addTableBlockDropZone();
 		if (actionBtn.dataset.tableMenuAction === 'block-zone') {
 			const sel = _tableSelection;
 			if (!sel || sel.sectionTag !== 'tbody') return;
@@ -1959,8 +2062,7 @@ function getTableContextMenu() {
 					if (cellTag !== 'td') continue;
 					const cellKey = `${row.key}_c${c}`;
 					if (block.tableCellBlockZones[cellKey]) {
-						delete block.tableCellBlockZones[cellKey];
-						if (block.tableCellInnerBlocks?.[cellKey]) delete block.tableCellInnerBlocks[cellKey];
+						clearTableCellBlockZone(block, cellKey);
 					} else {
 						block.tableCellBlockZones[cellKey] = true;
 						(block.items || []).forEach(item => { if (cellKey in item) item[cellKey] = ''; });
@@ -1999,6 +2101,7 @@ function openTableContextMenu(cell, event) {
 	event.preventDefault();
 	event.stopPropagation();
 	closeTableCellSpanPopover();
+	_tableContextTarget = info;
 
 	if (!_tableSelection || _tableSelection.blockId !== info.blockId || _tableSelection.sectionTag !== info.sectionTag ||
 		info.rowIdx < _tableSelection.minRow || info.rowIdx > _tableSelection.maxRow ||
@@ -2013,8 +2116,11 @@ function openTableContextMenu(cell, event) {
 	menu.querySelector('[data-table-menu-action="merge"]').disabled = !canMerge;
 	menu.querySelector('[data-table-menu-action="split"]').disabled = !canSplit;
 	const blockZoneBtn = menu.querySelector('[data-table-menu-action="block-zone"]');
+	const addBlockZoneBtn = menu.querySelector('[data-table-menu-action="add-block-zone"]');
 	const isInTbody = _tableSelection?.sectionTag === 'tbody';
+	const targetIsBlockZone = !!info.block.tableCellBlockZones?.[info.cellKey];
 	blockZoneBtn.style.display = isInTbody ? '' : 'none';
+	addBlockZoneBtn.style.display = 'none';
 	if (isInTbody) {
 		const sel = _tableSelection;
 		let hasTd = false, hasSomeZone = false;
@@ -2027,6 +2133,8 @@ function openTableContextMenu(cell, event) {
 			}
 		}
 		blockZoneBtn.disabled = !hasTd;
+		addBlockZoneBtn.style.display = targetIsBlockZone ? '' : 'none';
+		addBlockZoneBtn.disabled = !targetIsBlockZone;
 		blockZoneBtn.textContent = hasSomeZone ? '디자인블록 해제' : '디자인블록으로 변경';
 	}
 
@@ -2049,6 +2157,7 @@ function finishTableCellDrag() {
 
 	const { start, end, moved } = drag;
 	if (!moved || !end) {
+		_tableSelection = null;
 		clearTableDragRange();
 		return;
 	}
@@ -2399,26 +2508,6 @@ function openBlockProps(blockId) {
 		}
 	}
 
-	// 가정통신문 폰트 속성 패널 (section 블록)
-	const nlFontSection = document.getElementById('propsNewsletterFontSection');
-	if (nlFontSection) {
-		const isNlBlock = block.type.startsWith('newsletter-01__section_');
-		nlFontSection.style.display = isNlBlock ? '' : 'none';
-		if (isNlBlock) {
-			const ns = state.newsletterStyle;
-			const fontFamilySel = document.getElementById('propNlFontFamily');
-			const fontSizeInput = document.getElementById('propNlFontSize');
-			const lineHeightSel = document.getElementById('propNlLineHeight');
-			const fontWeightSel = document.getElementById('propNlFontWeight');
-			if (fontFamilySel) fontFamilySel.value = ns.fontFamily || '';
-			if (fontSizeInput) fontSizeInput.value = ns.fontSize || '';
-			if (lineHeightSel) lineHeightSel.value = ns.lineHeight || '';
-			if (fontWeightSel) fontWeightSel.value = ns.fontWeight || '';
-			const blockGapInput = document.getElementById('propNlBlockGap');
-			if (blockGapInput) blockGapInput.value = ns.blockGap || '';
-		}
-	}
-
 	panel.classList.add('is-open');
 }
 
@@ -2456,9 +2545,9 @@ function initNlInlineToolbar() {
 	}
 
 	// 툴바 클릭 시 contenteditable 포커스/선택 영역이 해제되지 않도록 방지
-	// 숫자 input은 예외 처리 (포커스 받아야 입력 가능)
+	// input/select는 예외 처리 (포커스 받아야 입력/선택 가능)
 	toolbar.addEventListener('mousedown', e => {
-		if (e.target.type === 'number') return;
+		if (e.target.closest('input, select')) return;
 		e.preventDefault();
 	});
 
@@ -2473,38 +2562,49 @@ function initNlInlineToolbar() {
 		toolbar.style.left = left + 'px';
 		toolbar.style.top = top + 'px';
 		toolbar.style.display = 'flex';
+		syncInlineToolbarControls(range);
 	}
 
-	// ── 크기 입력 모드 ──
-	let _sizeMode = false;
-	let _sizeBuf = '';
-	let _sizeFirstKey = false; // 첫 키 입력 시 기존 값 덮어쓰기 플래그
-	const sizeWrap = document.getElementById('nlItbSizeWrap');
-	const sizeDisplay = document.getElementById('nlItbSizeDisplay');
+	const sizeSelect = document.getElementById('nlItbSize');
+	const weightSelect = document.getElementById('nlItbWeight');
 
-	function startSizeMode() {
-		_sizeMode = true;
-		_sizeBuf = (sizeDisplay?.textContent || '').replace(/[^0-9]/g, '');
-		_sizeFirstKey = true; // 첫 키 입력은 기존 값을 대체
-		sizeWrap?.classList.add('size-active');
+	function getRangeStyleTarget(range) {
+		const node = range.startContainer.nodeType === 3
+			? range.startContainer.parentElement
+			: range.startContainer.childNodes[range.startOffset] || range.startContainer;
+		return (node.nodeType === 1 ? node : node.parentElement) || null;
 	}
 
-	function endSizeMode() {
-		_sizeMode = false;
-		sizeWrap?.classList.remove('size-active');
+	function syncInlineToolbarControls(range) {
+		const target = getRangeStyleTarget(range);
+		if (!target) return;
+		const style = window.getComputedStyle(target);
+		if (sizeSelect) {
+			const px = Math.round(parseFloat(style.fontSize || '0'));
+			const option = Array.from(sizeSelect.options).find(opt => Number(opt.value) === px);
+			sizeSelect.value = option ? option.value : '';
+		}
+		if (weightSelect) {
+			const weight = Number(style.fontWeight) || 400;
+			weightSelect.value = weight >= 800 ? '800' : weight >= 700 ? '700' : weight >= 500 ? '500' : '400';
+		}
 	}
 
-	function applySizeAndEnd() {
-		if (!_sizeBuf || !restoreRange()) { endSizeMode(); return; }
-		applySpanStyle({ fontSize: _sizeBuf + 'px' });
-		if (sizeDisplay) sizeDisplay.textContent = _sizeBuf;
-		endSizeMode();
+	function applyInlineToolbarAndClose() {
+		if (!restoreRange()) {
+			hideToolbar();
+			return;
+		}
+		const styleObj = {};
+		if (sizeSelect?.value) styleObj.fontSize = `${sizeSelect.value}px`;
+		if (weightSelect?.value) styleObj.fontWeight = weightSelect.value;
+		if (Object.keys(styleObj).length) applySpanStyle(styleObj);
+		hideToolbar();
 	}
 
 	function hideToolbar() {
 		toolbar.style.display = 'none';
 		_savedRange = null;
-		endSizeMode();
 	}
 
 	function isInNlContent(node) {
@@ -2581,48 +2681,16 @@ function initNlInlineToolbar() {
 		applySpanStyle({ color: e.target.value });
 	});
 
-	// 크기 입력 모드: 클릭 시 활성화, 키보드 숫자 입력 캡처
-	sizeWrap?.addEventListener('click', () => startSizeMode());
-
 	document.addEventListener('keydown', e => {
-		if (!_sizeMode) return;
-		if (e.key >= '0' && e.key <= '9') {
-			e.preventDefault();
-			if (_sizeFirstKey) { _sizeBuf = e.key; _sizeFirstKey = false; } // 첫 키: 덮어쓰기
-			else _sizeBuf += e.key;
-			if (Number(_sizeBuf) > 200) _sizeBuf = '200';
-			if (sizeDisplay) sizeDisplay.textContent = _sizeBuf;
-		} else if (e.key === 'Backspace') {
-			e.preventDefault();
-			_sizeFirstKey = false;
-			_sizeBuf = _sizeBuf.slice(0, -1);
-			if (sizeDisplay) sizeDisplay.textContent = _sizeBuf || '—';
-		} else if (e.key === 'Enter') {
-			e.preventDefault();
-			applySizeAndEnd();
-		} else if (e.key === 'Escape') {
-			endSizeMode();
-		}
+		if (toolbar.style.display !== 'flex') return;
+		if (e.key !== 'Enter') return;
+		if (document.activeElement && !toolbar.contains(document.activeElement)) return;
+		e.preventDefault();
+		applyInlineToolbarAndClose();
 	});
 
-	// 크기 적용 버튼
-	document.getElementById('nlItbApplySize')?.addEventListener('click', applySizeAndEnd);
-
-	// 굵기 토글
-	document.getElementById('nlItbBold')?.addEventListener('click', () => {
-		if (!restoreRange()) return;
-		const sel = window.getSelection();
-		if (!sel || !sel.rangeCount) return;
-		const range = sel.getRangeAt(0);
-		// selectNode(span) 이후에는 startContainer가 부모 → 직접 span 요소를 가져옴
-		const parent = range.startContainer;
-		const selectedNode = parent.nodeType === 1
-			? parent.childNodes[range.startOffset]
-			: parent;
-		const checkEl = (selectedNode?.nodeType === 1 ? selectedNode : selectedNode?.parentElement) || parent;
-		const isBold = Number(window.getComputedStyle(checkEl).fontWeight) >= 600;
-		applySpanStyle({ fontWeight: isBold ? '400' : '700' });
-	});
+	// 크기/굵기 적용 버튼
+	document.getElementById('nlItbApplySize')?.addEventListener('click', applyInlineToolbarAndClose);
 
 	// 서식 초기화: 선택 영역의 span 인라인 스타일 제거
 	document.getElementById('nlItbReset')?.addEventListener('click', () => {
@@ -2655,7 +2723,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propBlockWidth')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.blockWidth = this.value || null;
@@ -2664,7 +2732,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propMarginTop')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.marginTop = Number(this.value) || 0;
@@ -2673,7 +2741,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propMarginBottom')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.marginBottom = Number(this.value) || 0;
@@ -2682,7 +2750,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propMarginLeft')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.marginLeft = Number(this.value) || 0;
@@ -2691,7 +2759,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propMarginRight')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.marginRight = Number(this.value) || 0;
@@ -2701,7 +2769,7 @@ function initBlockPropsPanel() {
 	document.querySelectorAll('#propBlockAlign .props-align-btn').forEach(btn => {
 		btn.addEventListener('click', function () {
 			if (!_propsBlockId) return;
-			const block = state.blocks.find(b => b.id === _propsBlockId);
+			const block = resolveEditableBlockData(_propsBlockId);
 			if (!block) return;
 			pushHistory();
 			const newAlign = block.blockAlign === this.dataset.align ? '' : this.dataset.align;
@@ -2719,7 +2787,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propLinkHref')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.linkHref = this.value.trim();
@@ -2728,7 +2796,7 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propLinkTarget')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block) return;
 		pushHistory();
 		block.linkTarget = this.value;
@@ -2743,7 +2811,7 @@ function initBlockPropsPanel() {
 	// 이미지 박스(box-04): 이미지 업로드 후 즉시 적용
 	document.getElementById('propBoxImgFile')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'box-04') return;
 		const file = this.files?.[0];
 		if (!file || !file.type.startsWith('image/')) return;
@@ -2759,7 +2827,7 @@ function initBlockPropsPanel() {
 	// 이미지 박스(box-04): 적용 버튼 → alt + 파일 동시 반영
 	document.getElementById('propsApplyBoxImg')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'box-04') return;
 		const altInput = document.getElementById('propBoxImgAlt');
 		if (altInput) {
@@ -2772,7 +2840,7 @@ function initBlockPropsPanel() {
 	// 아이콘 박스(box-05): 아이콘 선택
 	document.getElementById('propBoxIco')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'box-05') return;
 		pushHistory();
 		block.icoId = this.value;
@@ -2782,7 +2850,7 @@ function initBlockPropsPanel() {
 	// 버튼 블록: 크기 선택
 	document.getElementById('propBtnSize')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'button') return;
 		pushHistory();
 		block.btnSize = this.value;
@@ -2792,7 +2860,7 @@ function initBlockPropsPanel() {
 	// 버튼 블록: 이동 방식 선택
 	document.getElementById('propBtnOpenType')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'button') return;
 		pushHistory();
 		block.btnOpenType = this.value;
@@ -2805,7 +2873,7 @@ function initBlockPropsPanel() {
 	// 버튼 블록: 아이콘 선택
 	document.getElementById('propBtnIcon')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || (block.type !== 'button-05' && block.type !== 'button-06')) return;
 		pushHistory();
 		block.btnIcon = this.value;
@@ -2815,7 +2883,7 @@ function initBlockPropsPanel() {
 	// 버튼 블록: 아이콘 위치 선택 (button-05 전용)
 	document.getElementById('propBtnIconPos')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'button-05') return;
 		pushHistory();
 		block.btnIconPos = this.value;
@@ -2825,7 +2893,7 @@ function initBlockPropsPanel() {
 	// 버튼 블록: 아이콘 전용(button-06) 숨김 텍스트 적용
 	document.getElementById('propsApplyBtnHid')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'button-06') return;
 		const hidInput = document.getElementById('propBtnHidText');
 		if (!hidInput) return;
@@ -2843,7 +2911,7 @@ function initBlockPropsPanel() {
 			if (!sel) return;
 			const blockId = sel.dataset.blockId;
 			const ibIdx = Number(sel.dataset.ibIdx);
-			const block = state.blocks.find(b => b.id === blockId);
+			const block = resolveEditableBlockData(blockId);
 			if (!block || block.type !== 'button-00' || !block.innerBlocks?.[ibIdx]) return;
 			const ib = block.innerBlocks[ibIdx];
 			pushHistory();
@@ -2868,7 +2936,7 @@ function initBlockPropsPanel() {
 			if (!btn) return;
 			const blockId = btn.dataset.blockId;
 			const ibIdx = Number(btn.dataset.ibIdx);
-			const block = state.blocks.find(b => b.id === blockId);
+			const block = resolveEditableBlockData(blockId);
 			if (!block || block.type !== 'button-00' || !block.innerBlocks?.[ibIdx]) return;
 			const ib = block.innerBlocks[ibIdx];
 			const input = btnInnerContainer.querySelector(`.props-btn-inner-hid[data-ib-idx="${ibIdx}"]`);
@@ -2908,7 +2976,7 @@ function initBlockPropsPanel() {
 	// 탭: 열 수 변경
 	document.getElementById('propTabCols')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'tab') return;
 		pushHistory();
 		block.tabCols = this.value;
@@ -2918,7 +2986,7 @@ function initBlockPropsPanel() {
 	// 절차(가로형): 열 수 변경
 	document.getElementById('propProcessCols')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'process-01') return;
 		pushHistory();
 		block.columns = Number(this.value) || 4;
@@ -2933,7 +3001,7 @@ function initBlockPropsPanel() {
 		if (!input) return;
 		const blockId = input.dataset.blockId;
 		const stepIdx = Number(input.dataset.stepIdx);
-		const block = state.blocks.find(b => b.id === blockId);
+		const block = resolveEditableBlockData(blockId);
 		if (!block || templateCategories[block.type] !== 'process') return;
 		const item = block.items[stepIdx];
 		if (!item) return;
@@ -2960,7 +3028,7 @@ function initBlockPropsPanel() {
 	// 탭: 항목 추가
 	document.getElementById('propsAddTabItem')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'tab') return;
 		pushHistory();
 		block.tabItems = block.tabItems || [];
@@ -2974,7 +3042,7 @@ function initBlockPropsPanel() {
 		const textInput = e.target.closest('.props-tab-text-input');
 		if (textInput) {
 			const idx = Number(textInput.dataset.tabTextIdx);
-			const block = state.blocks.find(b => b.id === textInput.dataset.blockId);
+			const block = resolveEditableBlockData(textInput.dataset.blockId);
 			if (!block || !block.tabItems || !block.tabItems[idx]) return;
 			pushHistory();
 			block.tabItems[idx].text = textInput.value;
@@ -2984,7 +3052,7 @@ function initBlockPropsPanel() {
 		const sel = e.target.closest('.props-tab-type-select');
 		if (!sel) return;
 		const idx = Number(sel.dataset.tabTypeIdx);
-		const block = state.blocks.find(b => b.id === sel.dataset.blockId);
+		const block = resolveEditableBlockData(sel.dataset.blockId);
 		if (!block || !block.tabItems || !block.tabItems[idx]) return;
 		pushHistory();
 		block.tabItems[idx].type = sel.value;
@@ -2994,7 +3062,7 @@ function initBlockPropsPanel() {
 		const btn = e.target.closest('.props-tab-remove-btn');
 		if (!btn || btn.disabled) return;
 		const idx = Number(btn.dataset.tabRemoveIdx);
-		const block = state.blocks.find(b => b.id === btn.dataset.blockId);
+		const block = resolveEditableBlockData(btn.dataset.blockId);
 		if (!block || !block.tabItems || block.tabItems.length <= 1) return;
 		pushHistory();
 		block.tabItems.splice(idx, 1);
@@ -3005,7 +3073,7 @@ function initBlockPropsPanel() {
 	// 아코디언: 크기 변경
 	document.getElementById('propAccordionSize')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'accordion') return;
 		pushHistory();
 		block.accordionSize = this.value;
@@ -3015,7 +3083,7 @@ function initBlockPropsPanel() {
 	// 아코디언: 항목 추가
 	document.getElementById('propsAddAccordionItem')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'accordion') return;
 		pushHistory();
 		block.accordionItems = block.accordionItems || [];
@@ -3030,7 +3098,7 @@ function initBlockPropsPanel() {
 		accordionItemsContainer.addEventListener('change', event => {
 			const textInput = event.target.closest('.props-accordion-text-input');
 			if (textInput) {
-				const block = state.blocks.find(b => b.id === textInput.dataset.blockId);
+				const block = resolveEditableBlockData(textInput.dataset.blockId);
 				const idx = Number(textInput.dataset.itemIdx);
 				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
 				pushHistory();
@@ -3040,7 +3108,7 @@ function initBlockPropsPanel() {
 			}
 			const contentInput = event.target.closest('.props-accordion-content-input');
 			if (contentInput) {
-				const block = state.blocks.find(b => b.id === contentInput.dataset.blockId);
+				const block = resolveEditableBlockData(contentInput.dataset.blockId);
 				const idx = Number(contentInput.dataset.itemIdx);
 				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
 				pushHistory();
@@ -3050,7 +3118,7 @@ function initBlockPropsPanel() {
 			}
 			const disCheck = event.target.closest('.props-accordion-dis-check');
 			if (disCheck) {
-				const block = state.blocks.find(b => b.id === disCheck.dataset.blockId);
+				const block = resolveEditableBlockData(disCheck.dataset.blockId);
 				const idx = Number(disCheck.dataset.itemIdx);
 				if (!block || !block.accordionItems || !block.accordionItems[idx]) return;
 				pushHistory();
@@ -3062,7 +3130,7 @@ function initBlockPropsPanel() {
 		accordionItemsContainer.addEventListener('click', event => {
 			const btn = event.target.closest('.props-accordion-remove-btn');
 			if (!btn || btn.disabled) return;
-			const block = state.blocks.find(b => b.id === btn.dataset.blockId);
+			const block = resolveEditableBlockData(btn.dataset.blockId);
 			const idx = Number(btn.dataset.itemIdx);
 			if (!block || !block.accordionItems || block.accordionItems.length <= 1) return;
 			pushHistory();
@@ -3075,7 +3143,7 @@ function initBlockPropsPanel() {
 	// discloser: 버튼 제목 변경
 	document.getElementById('propDiscloserTitle')?.addEventListener('input', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'accordion-03') return;
 		block.discloserTitle = this.value;
 		render();
@@ -3084,7 +3152,7 @@ function initBlockPropsPanel() {
 	// discloser: 내용 변경
 	document.getElementById('propDiscloserContent')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'accordion-03') return;
 		pushHistory();
 		block.discloserContent = this.value;
@@ -3124,7 +3192,7 @@ function initBlockPropsPanel() {
 	// 테이블: 열 수 변경
 	document.getElementById('propTableColCount')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'table') return;
 		const newCount = Math.max(1, Math.min(12, Number(this.value) || 4));
 		this.value = newCount;
@@ -3141,7 +3209,7 @@ function initBlockPropsPanel() {
 	// 테이블: 너비 조절 모드 변경
 	document.getElementById('propTableColWidthMode')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'table') return;
 		pushHistory();
 		block.tableColWidthMode = this.value;
@@ -3156,7 +3224,7 @@ function initBlockPropsPanel() {
 	// 테이블: 가로 스크롤 설정
 	document.getElementById('propTableScroll')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'table') return;
 		pushHistory();
 		block.tableScroll = this.value;
@@ -3166,7 +3234,7 @@ function initBlockPropsPanel() {
 	// 테이블: 수동 너비 적용
 	document.getElementById('propsApplyTableColWidths')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || templateCategories[block.type] !== 'table') return;
 		const inputs = document.querySelectorAll('#propsTableColWidthsContainer .props-table-col-width-input');
 		const nums = [];
@@ -3346,7 +3414,7 @@ function initBlockPropsPanel() {
 	// 가정통신문 헤더: 로고 파일 선택 시 즉시 적용
 	document.getElementById('propNlLogoFile')?.addEventListener('change', function () {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'newsletter-01__section_1') return;
 		const file = this.files?.[0];
 		if (!file || !file.type.startsWith('image/')) return;
@@ -3364,7 +3432,7 @@ function initBlockPropsPanel() {
 	// 가정통신문 헤더: 적용 버튼 (학교명, 부서명, 연락처)
 	document.getElementById('propsApplyNlHeader')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'newsletter-01__section_1') return;
 		const schoolName = document.getElementById('propNlSchoolName')?.value.trim() || '';
 		const dept = document.getElementById('propNlDept')?.value.trim() || '';
@@ -3382,7 +3450,7 @@ function initBlockPropsPanel() {
 	// 가정통신문 푸터: 적용 버튼
 	document.getElementById('propsApplyNlFooter')?.addEventListener('click', () => {
 		if (!_propsBlockId) return;
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		if (!block || block.type !== 'newsletter-01__section_4') return;
 		const year = document.getElementById('propNlYear')?.value.trim() || '';
 		const month = document.getElementById('propNlMonth')?.value.trim() || '';
@@ -3407,34 +3475,6 @@ function initBlockPropsPanel() {
 		render();
 	});
 
-	// 가정통신문 폰트: 적용 버튼
-	document.getElementById('propsApplyNlFont')?.addEventListener('click', () => {
-		const fontFamily = document.getElementById('propNlFontFamily')?.value || '';
-		const fontSize = document.getElementById('propNlFontSize')?.value || '';
-		const lineHeight = document.getElementById('propNlLineHeight')?.value || '';
-		const fontWeight = document.getElementById('propNlFontWeight')?.value || '';
-		const blockGap = document.getElementById('propNlBlockGap')?.value || '';
-		state.newsletterStyle = { fontFamily, fontSize, lineHeight, fontWeight, blockGap };
-		applyNewsletterStyles();
-	});
-}
-
-function applyNewsletterStyles() {
-	const ns = state.newsletterStyle;
-	// 폰트 패밀리: 전체 템플릿에 적용
-	document.querySelectorAll('.nl-template').forEach(el => {
-		if (ns.fontFamily) el.style.setProperty('--nl-font-family', ns.fontFamily);
-		else el.style.removeProperty('--nl-font-family');
-	});
-	// 폰트 크기/굵기/줄간격/블록간격: 본문 영역에만 적용
-	document.querySelectorAll('.nl-content-area').forEach(el => {
-		if (ns.fontSize) el.style.setProperty('--nl-font-size', `${ns.fontSize}px`);
-		else el.style.removeProperty('--nl-font-size');
-		if (ns.lineHeight) el.style.setProperty('--nl-line-height', ns.lineHeight);
-		else el.style.removeProperty('--nl-line-height');
-		if (ns.fontWeight) el.style.setProperty('--nl-font-weight', ns.fontWeight);
-		else el.style.removeProperty('--nl-font-weight');
-	});
 }
 
 // 혼합 블록에 허용되는 카테고리 (모듈 스코프)
@@ -3472,7 +3512,7 @@ function renderPropsProcessSteps(block) {
 }
 
 function addProcessStep(blockId) {
-	const block = state.blocks.find(b => b.id === blockId);
+	const block = resolveEditableBlockData(blockId);
 	if (!block || templateCategories[block.type] !== 'process') return;
 	pushHistory();
 	block.items.push({
@@ -3486,7 +3526,7 @@ function addProcessStep(blockId) {
 }
 
 function removeProcessStep(blockId, stepIdx) {
-	const block = state.blocks.find(b => b.id === blockId);
+	const block = resolveEditableBlockData(blockId);
 	if (!block || templateCategories[block.type] !== 'process') return;
 	if (block.items.length <= 2) return;
 	pushHistory();
@@ -3554,8 +3594,7 @@ function toggleTableCellBlockZone(blockId, cellKey) {
 	pushHistory();
 	if (!block.tableCellBlockZones) block.tableCellBlockZones = {};
 	if (block.tableCellBlockZones[cellKey]) {
-		delete block.tableCellBlockZones[cellKey];
-		if (block.tableCellInnerBlocks?.[cellKey]) delete block.tableCellInnerBlocks[cellKey];
+		clearTableCellBlockZone(block, cellKey);
 	} else {
 		block.tableCellBlockZones[cellKey] = true;
 		// 기존 셀 텍스트 내용 초기화
@@ -3575,7 +3614,7 @@ function addTableCellInnerBlock(blockId, cellKey, innerType) {
 	if (!block.tableCellInnerBlocks) block.tableCellInnerBlocks = {};
 	block.tableCellInnerBlocks[cellKey] = {
 		type: innerType,
-		marginBottom: 0,
+		marginBottom: 10,
 		items: [{ ...cloneData(innerData), style: createStyleForType(innerType) }]
 	};
 	if (templateCategories[innerType] === 'list') {
@@ -3594,8 +3633,10 @@ function addTableCellInnerBlockFromExisting(blockId, cellKey, sourceBlockId) {
 	pushHistory();
 	if (!block.tableCellInnerBlocks) block.tableCellInnerBlocks = {};
 	block.tableCellInnerBlocks[cellKey] = {
+		...cloneData(sourceBlock),
+		id: undefined,
 		type: sourceBlock.type,
-		marginBottom: 0,
+		marginBottom: sourceBlock.marginBottom ?? 10,
 		items: cloneData(sourceBlock.items || [])
 	};
 	state.blocks = state.blocks.filter(b => b.id !== sourceBlockId);
@@ -3609,6 +3650,7 @@ function removeTableCellInnerBlock(blockId, cellKey) {
 	if (!block || !block.tableCellInnerBlocks?.[cellKey]) return;
 	pushHistory();
 	delete block.tableCellInnerBlocks[cellKey];
+	if (cellKey.includes('__slot')) delete block.tableCellBlockZones?.[cellKey];
 	render();
 	renderPropsTableSection(block);
 }
@@ -4105,7 +4147,7 @@ async function generateNewsletterHtml() {
 						wrapper.className = 'nl-block-insert';
 						const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 							? bb.marginBottom
-							: (parseInt(state.newsletterStyle.blockGap) || 12);
+							: (12);
 						wrapper.style.marginBottom = gapPx + 'px';
 						if (bb.blockWidth) wrapper.style.width = bb.blockWidth;
 						if (bb.blockAlign === 'ac') { wrapper.style.marginLeft = 'auto'; wrapper.style.marginRight = 'auto'; }
@@ -4120,13 +4162,6 @@ async function generateNewsletterHtml() {
 		return sectionHtml;
 	}).join('\n');
 
-	const ns = state.newsletterStyle;
-	const nlFontFamily = ns.fontFamily || "'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif";
-	const nlFontSize = ns.fontSize ? `${ns.fontSize}px` : '15px';
-	const nlLineHeight = ns.lineHeight || '1.9';
-	const nlFontWeight = ns.fontWeight || 'normal';
-	const nlBlockGap = ns.blockGap ? `${ns.blockGap}px` : '12px';
-
 	return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -4138,18 +4173,10 @@ async function generateNewsletterHtml() {
 ${inlinedCss}
   @page { size: A4 portrait; margin: 20mm 18mm; }
   body {
-    font-family: ${nlFontFamily};
+    font-family: 'Pretendard', 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
     background: #fff;
     margin: 0;
     padding: 0;
-  }
-  .nl-template {
-    --nl-font-family: ${nlFontFamily};
-  }
-  .nl-content-area {
-    --nl-font-size: ${nlFontSize};
-    --nl-line-height: ${nlLineHeight};
-    --nl-font-weight: ${nlFontWeight};
   }
   .nl-print-wrapper {
     max-width: 768px;
@@ -4817,7 +4844,7 @@ function applyAllTemplateStyles() {
 		// 외부 블록 아이템 스타일 적용 (list-wrap 내부 .block-item 제외)
 		const outerItems = Array.from(blockEl.querySelectorAll('.block-item')).filter(el => {
 			const bid = el.dataset.blockId || '';
-			return !bid.match(/::list::\d+$/);
+			return !bid.match(/::list::\d+$/) && !bid.includes('::tcell::');
 		});
 		block.items.forEach((item, idx) => {
 			if (outerItems[idx]) applyItemStyles(outerItems[idx], item, template);
@@ -4833,6 +4860,17 @@ function applyAllTemplateStyles() {
 				const innerItems = listWrap.querySelectorAll('.block-item');
 				rowItem.listBlock.items.forEach((lb_item, idx) => {
 					if (innerItems[idx]) applyItemStyles(innerItems[idx], lb_item, listTemplate);
+				});
+			});
+		}
+		if (block.tableCellInnerBlocks) {
+			Object.entries(block.tableCellInnerBlocks).forEach(([cellKey, ib]) => {
+				const innerTemplate = componentTemplates[ib.type];
+				if (!innerTemplate) return;
+				const selector = `.block-item[data-block-id="${CSS.escape(`${block.id}::tcell::${cellKey}`)}"]`;
+				const innerItems = blockEl.querySelectorAll(selector);
+				ib.items?.forEach((item, idx) => {
+					if (innerItems[idx]) applyItemStyles(innerItems[idx], item, innerTemplate);
 				});
 			});
 		}
@@ -4900,7 +4938,6 @@ function render() {
 		: '<div class="canvas-empty">왼쪽 디자인 블록을 여기로 드래그하세요</div>';
 	bindRenderedEvents();
 	applyAllTemplateStyles();
-	applyNewsletterStyles();
 	syncCanvasGuideSize();
 	updateMarkup();
 	renderRecommendationPanel();
@@ -4926,7 +4963,7 @@ function render() {
 		}
 	}
 	if (_propsBlockId) {
-		const block = state.blocks.find(b => b.id === _propsBlockId);
+		const block = resolveEditableBlockData(_propsBlockId);
 		const mixRef = !block ? resolveMixInnerRef(_propsBlockId) : null;
 		const resolvedBlock = block || (mixRef
 			? { id: _propsBlockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items, blockWidth: null, marginBottom: mixRef.innerBlock.marginBottom ?? 10, blockAlign: '' }
@@ -4934,8 +4971,14 @@ function render() {
 		if (resolvedBlock) {
 			const widthSel = document.getElementById('propBlockWidth');
 			const marginInput = document.getElementById('propMarginBottom');
+			const marginTopInput = document.getElementById('propMarginTop');
+			const marginLeftInput = document.getElementById('propMarginLeft');
+			const marginRightInput = document.getElementById('propMarginRight');
 			if (widthSel) widthSel.value = resolvedBlock.blockWidth || '';
 			if (marginInput) marginInput.value = resolvedBlock.marginBottom ?? 30;
+			if (marginTopInput) marginTopInput.value = resolvedBlock.marginTop ?? 0;
+			if (marginLeftInput) marginLeftInput.value = resolvedBlock.marginLeft ?? 0;
+			if (marginRightInput) marginRightInput.value = resolvedBlock.marginRight ?? 0;
 			document.querySelectorAll('#propBlockAlign .props-align-btn').forEach(btn => {
 				btn.classList.toggle('is-active', btn.dataset.align === (resolvedBlock.blockAlign || ''));
 			});
@@ -5161,31 +5204,37 @@ function renderEditListInElement(outerEl, editListLiTemplate, item, block, colum
 }
 
 function addListItem(blockId, columnIndex, afterFieldKey) {
-	const block = state.blocks.find(b => b.id === blockId);
-	if (!block || !block.items[columnIndex]) return;
+	const targetItems = getEditTargetItems(blockId);
+	if (!targetItems || !targetItems[columnIndex]) return;
 	pushHistory();
-	const item = block.items[columnIndex];
+	const item = targetItems[columnIndex];
 	const entries = getEditListItems(item);
 	const idx = entries.findIndex(e => e.key === afterFieldKey);
 	entries.splice(idx + 1, 0, { key: '', value: '새 항목' });
 	entries.forEach((e, i) => { e.key = `item${i + 1}`; });
+	const nextFieldKey = entries[Math.max(0, idx + 1)]?.key || afterFieldKey;
 	Object.keys(item).filter(k => /^item\d+$/.test(k)).forEach(k => delete item[k]);
 	entries.forEach(e => { item[e.key] = e.value; });
+	_listEditTarget = { blockId, columnIndex, fieldKey: nextFieldKey };
 	render();
+	restoreListEditButtons();
 }
 
 function deleteListItem(blockId, columnIndex, fieldKey) {
-	const block = state.blocks.find(b => b.id === blockId);
-	if (!block || !block.items[columnIndex]) return;
-	const item = block.items[columnIndex];
+	const targetItems = getEditTargetItems(blockId);
+	if (!targetItems || !targetItems[columnIndex]) return;
+	const item = targetItems[columnIndex];
 	const entries = getEditListItems(item);
 	if (entries.length <= 1) return;
 	pushHistory();
 	const newEntries = entries.filter(e => e.key !== fieldKey);
 	newEntries.forEach((e, i) => { e.key = `item${i + 1}`; });
+	const nextFieldKey = newEntries[0]?.key || '';
 	Object.keys(item).filter(k => /^item\d+$/.test(k)).forEach(k => delete item[k]);
 	newEntries.forEach(e => { item[e.key] = e.value; });
+	_listEditTarget = nextFieldKey ? { blockId, columnIndex, fieldKey: nextFieldKey } : null;
 	render();
+	restoreListEditButtons();
 }
 
 function renderRepeatedColumns(block) {
@@ -5260,7 +5309,7 @@ function renderRepeatedColumns(block) {
 							wrapper.dataset.nlBodyBlockId = bb.id;
 							const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
 								? bb.marginBottom
-								: (parseInt(state.newsletterStyle.blockGap) || 12);
+								: (12);
 							if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 							wrapper.style.marginBottom = gapPx + 'px';
 							if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
@@ -6146,6 +6195,9 @@ function bindRenderedEvents() {
 		cell.addEventListener('mousedown', event => {
 			if (document.body.classList.contains('preview-mode')) return;
 			if (event.button !== 0) return;
+			if (cell.getAttribute('contenteditable') === 'true') return;
+			if (event.target.closest?.('[contenteditable="true"]')) return;
+			if (event.target.closest('.table-cell-block-zone')) return;
 			startTableCellDrag(cell, event);
 		});
 		cell.addEventListener('mouseenter', () => {
@@ -6153,7 +6205,10 @@ function bindRenderedEvents() {
 			updateTableDragRange(cell);
 		});
 		cell.addEventListener('contextmenu', event => openTableContextMenu(cell, event));
-		cell.addEventListener('dragstart', event => event.preventDefault());
+		cell.addEventListener('dragstart', event => {
+			if (cell.getAttribute('contenteditable') === 'true' || event.target.closest?.('[contenteditable="true"]')) return;
+			event.preventDefault();
+		});
 	});
 	if (!_tableCellDragEventsBound) {
 		_tableCellDragEventsBound = true;
@@ -6795,13 +6850,7 @@ function finishTextEdit(event) {
 	if (field._editCancelled) return;
 	const columnIndex = Number(field.dataset.columnIndex);
 	// 혼합 내부 블록 / title-list list-wrap / 테이블 셀 내부 블록 참조 여부 확인
-	const mixRef = resolveMixInnerRef(field.dataset.blockId);
-	const listRef = !mixRef ? resolveListInnerRef(field.dataset.blockId) : null;
-	const tcellRef = !mixRef && !listRef ? resolveTableCellInnerRef(field.dataset.blockId) : null;
-	const targetItems = mixRef ? mixRef.innerBlock.items
-		: listRef ? listRef.listBlock.items
-		: tcellRef ? tcellRef.innerBlockData.items
-		: state.blocks.find(b => b.id === field.dataset.blockId)?.items;
+	const targetItems = getEditTargetItems(field.dataset.blockId);
 	if (!targetItems || !targetItems[columnIndex]) return;
 	const html = field.innerHTML;
 	const fieldName = field.dataset.editField;
@@ -6911,11 +6960,7 @@ function _insertInlineBlock(templateId, x, y) {
 	const columnIndex = Number(field.dataset.columnIndex);
 	const fieldName = field.dataset.editField;
 
-	const mixRef = resolveMixInnerRef(blockId);
-	const listRef = !mixRef ? resolveListInnerRef(blockId) : null;
-	const targetItems = mixRef ? mixRef.innerBlock.items
-		: listRef ? listRef.listBlock.items
-		: state.blocks.find(b => b.id === blockId)?.items;
+	const targetItems = getEditTargetItems(blockId);
 
 	if (!targetItems || !targetItems[columnIndex]) return;
 
@@ -7035,11 +7080,7 @@ function _confirmSmartInline() {
 	const fragment = insertRange.createContextualFragment(temp.innerHTML);
 	placeholder.replaceWith(fragment);
 
-	const mixRef = resolveMixInnerRef(fieldBlockId);
-	const listRef = !mixRef ? resolveListInnerRef(fieldBlockId) : null;
-	const targetItems = mixRef ? mixRef.innerBlock.items
-		: listRef ? listRef.listBlock.items
-		: state.blocks.find(b => b.id === fieldBlockId)?.items;
+	const targetItems = getEditTargetItems(fieldBlockId);
 
 	if (targetItems?.[columnIndex]) {
 		pushHistory();
@@ -7395,7 +7436,7 @@ function _generateBlocksMarkup() {
 								const wrapper = document.createElement('div');
 								wrapper.className = 'nl-block-insert nl-body-block-wrap';
 								const gapPx = (bb.marginBottom !== undefined && bb.marginBottom !== null)
-									? bb.marginBottom : (parseInt(state.newsletterStyle.blockGap) || 12);
+									? bb.marginBottom : (12);
 								if (bb.marginTop) wrapper.style.marginTop = bb.marginTop + 'px';
 								wrapper.style.marginBottom = gapPx + 'px';
 								if (bb.marginLeft && bb.blockAlign !== 'ac') wrapper.style.marginLeft = bb.marginLeft + 'px';
@@ -7938,10 +7979,20 @@ function positionListEditButtons(li) {
 	_listEditButtons.style.left = `${left}px`;
 	_listEditButtons.style.top = `${top}px`;
 
-	const block = state.blocks.find(b => b.id === li.dataset.blockId);
 	const columnIndex = Number(li.dataset.columnIndex);
-	const itemCount = block ? getEditListItems(block.items[columnIndex] || {}).length : 0;
+	const targetItems = getEditTargetItems(li.dataset.blockId);
+	const itemCount = targetItems ? getEditListItems(targetItems[columnIndex] || {}).length : 0;
 	_listEditButtons.querySelector('.list-del-btn').disabled = itemCount <= 1;
+}
+
+function restoreListEditButtons() {
+	if (!_listEditButtons || !_listEditTarget) return;
+	requestAnimationFrame(() => {
+		const selector = `.edit-list li[data-block-id="${CSS.escape(_listEditTarget.blockId)}"][data-column-index="${_listEditTarget.columnIndex}"][data-edit-field="${CSS.escape(_listEditTarget.fieldKey)}"]`;
+		const li = document.querySelector(selector) || document.querySelector(`.edit-list li[data-block-id="${CSS.escape(_listEditTarget.blockId)}"][data-column-index="${_listEditTarget.columnIndex}"]`);
+		if (!li) return;
+		positionListEditButtons(li);
+	});
 }
 
 function bindEditListEvents() {
