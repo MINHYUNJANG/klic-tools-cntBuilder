@@ -5139,9 +5139,16 @@ function renderBuilderBlock(block, idx = 0, total = 1) {
 	const effectiveMarginBottom = (total <= 1 || idx === total - 1) ? 0 : (block.marginBottom ?? 10);
 	const blockStyleParts = [`margin-bottom:${effectiveMarginBottom}px`];
 	if (block.marginTop) blockStyleParts.push(`margin-top:${block.marginTop}px`);
-	if (block.marginLeft) blockStyleParts.push(`margin-left:${block.marginLeft}px`);
-	if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
-	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.marginLeft, block.marginRight);
+	if (block.blockAlign === 'ac') {
+		blockStyleParts.push('margin-left:auto', 'margin-right:auto');
+	} else if (block.blockAlign === 'ar') {
+		blockStyleParts.push('margin-left:auto');
+		if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
+	} else {
+		if (block.marginLeft) blockStyleParts.push(`margin-left:${block.marginLeft}px`);
+		if (block.marginRight) blockStyleParts.push(`margin-right:${block.marginRight}px`);
+	}
+	const effectiveWidth = _calcEffectiveWidth(block.blockWidth, block.blockAlign ? 0 : block.marginLeft, block.blockAlign ? 0 : block.marginRight);
 	if (effectiveWidth) blockStyleParts.push(`width:${effectiveWidth}`);
 	const dragHandle = templateCategories[block.type] === 'table'
 		? `<span class="block-drag-handle" data-tooltip="이동" aria-label="블록 이동"><i class="ri-draggable" aria-hidden="true"></i></span>`
