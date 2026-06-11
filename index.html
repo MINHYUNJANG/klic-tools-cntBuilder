@@ -644,21 +644,40 @@
 	<!-- 가정통신문 인라인 텍스트 서식 툴바 -->
 	<div id="nlInlineToolbar" class="nl-inline-toolbar" role="toolbar" aria-label="텍스트 서식">
 		<label class="nl-itb-item" title="글자 색상">
-			<i class="ri-font-color" aria-hidden="true"></i>
+			<span>글자</span>
 			<input type="color" id="nlItbColor" value="#222222">
 		</label>
 		<div class="nl-itb-sep"></div>
-		<div class="nl-itb-size-wrap" id="nlItbSizeWrap" title="클릭 후 숫자 입력">
-			<span class="nl-itb-size-display" id="nlItbSizeDisplay">—</span>
+		<label class="nl-itb-select-wrap" title="폰트 크기">
+			<select id="nlItbSize" aria-label="폰트 크기">
+				<option value="">-</option>
+				<option value="14">14</option>
+				<option value="15">15</option>
+				<option value="16">16</option>
+				<option value="18">18</option>
+				<option value="20">20</option>
+				<option value="22">22</option>
+				<option value="24">24</option>
+				<option value="26">26</option>
+			</select>
 			<span class="nl-itb-unit">px</span>
-		</div>
-		<button type="button" class="nl-itb-btn" id="nlItbApplySize" title="크기 적용 (Enter)">
-			<i class="ri-check-line" aria-hidden="true"></i>
-		</button>
+		</label>
 		<div class="nl-itb-sep"></div>
-		<button type="button" class="nl-itb-btn" id="nlItbBold" title="굵게"><b>B</b></button>
+		<label class="nl-itb-select-wrap" title="굵기">
+			<span>굵기</span>
+			<select id="nlItbWeight" aria-label="굵기">
+				<option value="400">R</option>
+				<option value="500">M</option>
+				<option value="700">B</option>
+				<option value="800">E</option>
+			</select>
+		</label>
 		<button type="button" class="nl-itb-btn nl-itb-reset" id="nlItbReset" title="서식 초기화">
 			<i class="ri-format-clear" aria-hidden="true"></i>
+		</button>
+		<button type="button" class="nl-itb-btn nl-itb-apply" id="nlItbApplySize" title="서식 적용 (Enter)">
+			<i class="ri-check-line" aria-hidden="true"></i>
+			<span>적용</span>
 		</button>
 	</div>
 

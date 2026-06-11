@@ -756,7 +756,7 @@ body.header-compact .topbar-extra {
 	border-radius: 0;
 	background: transparent;
 	color: #252525;
-	font-size: 0.64rem;
+	font-size: 0.75rem;
 	font-weight: 900;
 	padding: 0;
 	border-bottom: 4px solid transparent;
@@ -970,8 +970,8 @@ body.header-compact .topbar-extra {
 	padding: 0 12px;
 	background: #ececf2;
 	color: #252525;
-	font-size: 0.6rem;
-	font-weight: 900;
+	font-size: 0.7rem;
+	font-weight: 700;
 }
 
 .component-filters [data-template-filter="mix"] {
@@ -2948,7 +2948,7 @@ body.preview-mode .mix-slot-placeholder {
 /* ── 내부 블록 액션 버튼 그룹 (mix/table-cell 공통) ── */
 .inner-block-actions {
 	position: absolute;
-	bottom: 0;
+	bottom: 18px;
 	right: 0;
 	top: auto;
 	transform: translateY(100%);
@@ -3866,7 +3866,6 @@ div.props-table-mini-cell {
 
 div.props-table-mini-cell.is-block-zone {
 	background: #fff5f5;
-	border-color: #e53e3e;
 }
 
 .props-mini-cell-tag {
@@ -4171,7 +4170,12 @@ body.is-table-cell-dragging {
 	outline: 2px dashed #e53e3e;
 	outline-offset: -2px;
 	min-height: 64px;
+	margin-top: 10px;
 	transition: background 0.15s;
+}
+
+.table-cell-block-zone.is-empty:first-child {
+	margin-top: 0;
 }
 
 .table-cell-block-zone.is-empty.is-drag-over {

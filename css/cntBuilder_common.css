@@ -3,9 +3,7 @@
 /* 블록 배치 규칙 토스트 */
 .placement-toast {
 	position: fixed;
-	top: 72px;
-	left: 50%;
-	transform: translateX(-50%) translateY(-12px);
+	transform: translate(-50%, calc(-50% - 12px));
 	padding: 10px 20px;
 	border-radius: 6px;
 	font-size: 13px;
@@ -18,7 +16,7 @@
 }
 .placement-toast.is-visible {
 	opacity: 1;
-	transform: translateX(-50%) translateY(0);
+	transform: translate(-50%, -50%);
 	pointer-events: auto;
 }
 .placement-toast--error {
