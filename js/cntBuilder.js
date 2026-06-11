@@ -653,6 +653,7 @@ async function loadHtmlTemplate(path) {
 	const tabDefaults = config.tabDefaults || null;
 	const accordionDefaults = config.accordionDefaults || null;
 	const discloserDefaults = config.discloserDefaults || null;
+	const initialBodyBlocks = config.initialBodyBlocks || [];
 
 	return {
 		id,
@@ -667,6 +668,7 @@ async function loadHtmlTemplate(path) {
 		tabDefaults,
 		accordionDefaults,
 		discloserDefaults,
+		initialBodyBlocks,
 		element,
 		addRowWrap,
 		isRootWrap,
@@ -1017,6 +1019,51 @@ function addDesignTemplate(type, targetBlockId = null, position = 'after') {
 	} else {
 		state.blocks.push(...blocks);
 	}
+	if (template.initialBodyBlocks?.length) {
+		let bodyParentBlock = null;
+		for (let i = 0; i < sectionTypes.length; i++) {
+			const secTemplate = componentTemplates[sectionTypes[i]];
+			if (secTemplate?.element?.querySelector('[data-edit-field="body"]')) {
+				bodyParentBlock = blocks[i];
+				break;
+			}
+		}
+		if (bodyParentBlock) {
+			template.initialBodyBlocks.forEach(entry => {
+				const bodyType = typeof entry === 'string' ? entry : entry.type;
+				if (!componentTemplates[bodyType]) return;
+				const bodyBlock = createBlock(bodyType);
+				bodyBlock._isNlBodyBlock = true;
+				bodyBlock._parentSectionId = bodyParentBlock.id;
+				if (typeof entry === 'object') {
+					bodyBlock.marginBottom = entry.marginBottom ?? 0;
+					if (entry.marginTop != null) bodyBlock.marginTop = entry.marginTop;
+					if (entry.marginLeft != null) bodyBlock.marginLeft = entry.marginLeft;
+					if (entry.marginRight != null) bodyBlock.marginRight = entry.marginRight;
+					if (entry.data) Object.assign(bodyBlock.items[0], entry.data);
+					if (entry.listRows && templateCategories[bodyType] === 'list') {
+						_applyInitialListRows(bodyBlock, entry.listRows);
+					}
+					if (entry.markerType && templateCategories[bodyType] === 'list') {
+						bodyBlock.listMarkerType = entry.markerType;
+					}
+					if (entry.initialTableData && templateCategories[bodyType] === 'table') {
+						// entry.colCount를 initialTableData 앞에 병합 (entry 레벨 colCount 우선 지원)
+					const _tblData = entry.colCount != null
+						? { colCount: entry.colCount, ...entry.initialTableData }
+						: entry.initialTableData;
+					_applyInitialTableData(bodyBlock, _tblData);
+					}
+					if (entry.slots && typeof entry.slots === 'object') {
+						_applyInitialSlots(bodyBlock, entry.slots);
+					}
+				} else {
+					bodyBlock.marginBottom = 0;
+				}
+				state.blocks.push(bodyBlock);
+			});
+		}
+	}
 	render();
 	const firstBlock = blocks[0];
 	const newEl = firstBlock ? canvasGrid.querySelector(`[data-block-id="${firstBlock.id}"]`) : null;
@@ -1155,16 +1202,54 @@ function renderListDynamically(block, item, columnIndex, templateElement, editab
 				const mrk = document.createElement('span');
 				mrk.className = 'mrk';
 				mrk.textContent = depth === 0
-					? String.fromCharCode(65 + idx)
+					? (block?.listMarkerType === 'num' ? String(idx + 1) : String.fromCharCode(65 + idx))
 					: String(idx + 1).padStart(2, '0');
 				li.appendChild(mrk);
 			}
-			if (editable && block) {
+			// 리스트 행에 삽입된 블록 렌더링
+			if (row.blockRef) {
+				// 텍스트가 있으면 블록 위에 함께 표시 (드롭 타겟 유지)
+				const rowText = item[row.key] || '';
+				if (rowText) {
+					if (editable && block) {
+						const textSpan = document.createElement('span');
+						setFieldContent(textSpan, rowText);
+						textSpan.dataset.editField = row.key;
+						textSpan.dataset.blockId = block.id;
+						textSpan.dataset.columnIndex = String(columnIndex);
+						textSpan.dataset.listRow = 'true';
+						li.appendChild(textSpan);
+					} else {
+						li.insertAdjacentHTML('beforeend', rowText);
+					}
+				}
+				const childBlock = state.blocks.find(b => b.id === row.blockRef);
+				if (childBlock) {
+					if (editable) {
+						const childWrapper = document.createElement('div');
+						childWrapper.className = 'nl-block-insert nl-body-block-wrap';
+						childWrapper.dataset.nlBodyBlockId = childBlock.id;
+						const mbPx = childBlock.marginBottom ?? 0;
+						childWrapper.style.marginBottom = mbPx + 'px';
+						const ctrlHtml = _innerBlockActionsHtml(
+							`<button type="button" class="inner-block-btn inner-block-btn--props" data-nl-body-props-id="${childBlock.id}" title="속성" aria-hidden="true"><i class="ri-settings-3-line"></i></button>`,
+							`<button type="button" class="inner-block-btn inner-block-btn--remove" data-nl-body-delete-id="${childBlock.id}" title="삭제" aria-hidden="true"><i class="ri-delete-bin-line"></i></button>`
+						);
+						childWrapper.innerHTML = ctrlHtml + renderRepeatedColumns(childBlock);
+						li.appendChild(childWrapper);
+					} else {
+						const childWrapper = document.createElement('div');
+						childWrapper.innerHTML = _renderBlockExportHtml(childBlock);
+						li.appendChild(childWrapper);
+					}
+				}
+			} else if (editable && block) {
 				const textSpan = document.createElement('span');
 				setFieldContent(textSpan, item[row.key] || '');
 				textSpan.dataset.editField = row.key;
 				textSpan.dataset.blockId = block.id;
 				textSpan.dataset.columnIndex = String(columnIndex);
+				textSpan.dataset.listRow = 'true';
 				li.appendChild(textSpan);
 			} else {
 				li.insertAdjacentHTML('beforeend', item[row.key] || '');
@@ -1185,9 +1270,110 @@ function renderListDynamically(block, item, columnIndex, templateElement, editab
 
 let _rowSeq = 0;
 
+// config의 blockDef 객체로 슬롯 자식 블록을 생성하는 공통 헬퍼
+function _createSlotBlock(blockDef, parentId, slotField) {
+	const type = blockDef.type;
+	if (!componentTemplates[type]) return null;
+	const child = createBlock(type);
+	child._slotParentId = parentId;
+	child._slotField = slotField;
+	if (blockDef.data) Object.assign(child.items[0], blockDef.data);
+	if (blockDef.marginBottom != null) child.marginBottom = blockDef.marginBottom;
+	if (blockDef.marginTop != null) child.marginTop = blockDef.marginTop;
+	if (blockDef.listRows && templateCategories[type] === 'list') {
+		_applyInitialListRows(child, blockDef.listRows);
+	}
+	if (blockDef.markerType && templateCategories[type] === 'list') {
+		child.listMarkerType = blockDef.markerType;
+	}
+	if (blockDef.initialTableData && templateCategories[type] === 'table') {
+		const tblData = blockDef.colCount != null
+			? { colCount: blockDef.colCount, ...blockDef.initialTableData }
+			: blockDef.initialTableData;
+		_applyInitialTableData(child, tblData);
+	}
+	// 재귀: 슬롯 자식이 또 슬롯을 가질 수 있음
+	if (blockDef.slots && typeof blockDef.slots === 'object') {
+		_applyInitialSlots(child, blockDef.slots);
+	}
+	return child;
+}
+
+// initialBodyBlocks / blockDef 의 slots 객체를 처리
+function _applyInitialSlots(block, slotsConfig) {
+	Object.entries(slotsConfig).forEach(([field, blockDefs]) => {
+		if (!Array.isArray(blockDefs)) return;
+		blockDefs.forEach(blockDef => {
+			const child = _createSlotBlock(blockDef, block.id, field);
+			if (child) state.blocks.push(child);
+		});
+	});
+}
+
+function _applyInitialListRows(block, rowDefs) {
+	const item = block.items[0];
+	if (!item) return;
+	// 템플릿 기본값으로 생성된 키를 모두 삭제
+	if (item.rows) {
+		const clearRows = (rows) => {
+			rows.forEach(row => {
+				delete item[row.key];
+				if (row.children?.length) clearRows(row.children);
+			});
+		};
+		clearRows(item.rows);
+	}
+	item.rows = [];
+	const build = (defs, stateRows) => {
+		defs.forEach(def => {
+			const newKey = _newRowKey(block);
+			const row = { key: newKey, children: [] };
+			stateRows.push(row);
+			if (typeof def === 'string') {
+				// 문자열: 텍스트만
+				item[newKey] = def;
+			} else if (typeof def === 'object' && def !== null) {
+				// text + blockDef 동시 지원
+				// text 없이 blockDef만: 마커 없는 빈 항목 + 블록 (Circle 1)
+				// text + blockDef: 텍스트 아래 블록이 같은 li 안에 (Circle 1)
+				// text + children: 텍스트 아래 자식 ul (Circle 2)
+				item[newKey] = def.text || '';
+				if (def.blockDef && def.blockDef.type) {
+					const child = _createSlotBlock(def.blockDef, block.id, newKey);
+					if (child) {
+						state.blocks.push(child);
+						row.blockRef = child.id;
+					}
+				}
+				if (Array.isArray(def.children) && def.children.length) {
+					build(def.children, row.children);
+				}
+			}
+		});
+	};
+	build(rowDefs, item.rows);
+}
+
 function _newRowKey(block) {
 	const prefix = block.id.replace(/[^a-zA-Z0-9]/g, '_');
 	return `${prefix}_rX${_rowSeq++}`;
+}
+
+// 리스트 블록의 중첩 row 트리에서 rowKey로 row 객체를 탐색
+function _findListRow(block, rowKey) {
+	const item = block.items[0];
+	if (!item || !item.rows) return null;
+	const find = (rows) => {
+		for (const row of rows) {
+			if (row.key === rowKey) return row;
+			if (row.children?.length) {
+				const found = find(row.children);
+				if (found) return found;
+			}
+		}
+		return null;
+	};
+	return find(item.rows);
 }
 
 function addListRowToBlock(blockId) {
@@ -1352,6 +1538,78 @@ function initTableBlock(block) {
 	block.tableTfootRows = [];
 	if (!block.cellSpan) block.cellSpan = {};
 	if (!block.tableScroll) block.tableScroll = '';
+}
+
+function _applyInitialTableData(block, tableData) {
+	const item = block.items[0];
+	if (!item) return;
+	const prevCol = block.tableColCount || 4; // 변경 전에 캡처
+	const colCount = tableData.colCount || prevCol;
+	block.tableColCount = colCount;
+	block.tableColWidths = Array(colCount).fill(`${Math.round(100 / colCount)}%`);
+	block.tableColWidthMode = 'auto';
+	// 기존 행 키 삭제
+	const clearRows = (rows, oldCol) => {
+		if (!rows) return;
+		rows.forEach(row => {
+			for (let c = 0; c < oldCol; c++) delete item[`${row.key}_c${c}`];
+		});
+	};
+	clearRows(block.tableTheadRows, prevCol);
+	clearRows(block.tableTbodyRows, prevCol);
+	clearRows(block.tableTfootRows, prevCol);
+	// 컬럼 너비: colWidths 배열 지정 시 manual 모드 적용
+	if (Array.isArray(tableData.colWidths) && tableData.colWidths.length === colCount) {
+		block.tableColWidthMode = 'manual';
+		block.tableColWidths = tableData.colWidths;
+	}
+	// 행 빌더: 2차원 배열 → row 객체 + item 데이터
+	// 셀 값: 문자열 | {text, tag?, rowspan?, colspan?} | null(병합으로 숨겨진 셀)
+	if (!block.cellSpan) block.cellSpan = {};
+	const buildRows = (rowsData, isThead) => rowsData.map(cells => {
+		const key = _newTableRowKey(block);
+		const row = { key, thAlign: '', tdAlign: '' };
+		if (!isThead) row.cellTags = Array(colCount).fill('td');
+		for (let c = 0; c < colCount; c++) {
+			const cell = cells[c];
+			if (cell === null || cell === undefined) {
+				item[`${key}_c${c}`] = '';
+			} else if (typeof cell === 'object') {
+				item[`${key}_c${c}`] = cell.text ?? '';
+				const rs = cell.rowspan || 1;
+				const cs = cell.colspan || 1;
+				if (rs > 1 || cs > 1) {
+					block.cellSpan[`${key}_c${c}`] = { rowspan: rs, colspan: cs };
+				}
+				if (!isThead && cell.tag === 'th' && row.cellTags) {
+					row.cellTags[c] = 'th';
+				}
+			} else {
+				item[`${key}_c${c}`] = String(cell);
+			}
+		}
+		return row;
+	});
+	if (tableData.thead?.length) {
+		block.tableHasThead = true;
+		block.tableTheadRows = buildRows(tableData.thead, true);
+	} else {
+		block.tableHasThead = false;
+		block.tableTheadRows = [];
+	}
+	if (tableData.tbody?.length) {
+		block.tableHasTbody = true;
+		block.tableTbodyRows = buildRows(tableData.tbody, false);
+	} else {
+		block.tableTbodyRows = [];
+	}
+	if (tableData.tfoot?.length) {
+		block.tableHasTfoot = true;
+		block.tableTfootRows = buildRows(tableData.tfoot, false);
+	} else {
+		block.tableHasTfoot = false;
+		block.tableTfootRows = [];
+	}
 }
 
 function generateTableCaption(block, item) {
@@ -2294,7 +2552,13 @@ function openBlockProps(blockId) {
 	if (!block) {
 		const mixRef = resolveMixInnerRef(blockId);
 		if (mixRef) {
-			block = { id: blockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items, blockWidth: null, marginBottom: mixRef.innerBlock.marginBottom ?? 10, blockAlign: '' };
+			block = { id: blockId, type: mixRef.innerBlock.type, items: mixRef.innerBlock.items,
+					blockWidth: null, blockAlign: '',
+					marginTop: mixRef.innerBlock.marginTop ?? 0,
+					marginBottom: mixRef.innerBlock.marginBottom ?? 0,
+					marginLeft: mixRef.innerBlock.marginLeft ?? 0,
+					marginRight: mixRef.innerBlock.marginRight ?? 0,
+					listMarkerType: mixRef.innerBlock.listMarkerType || '' };
 			isMixInnerBlock = true;
 		} else {
 			const tcellRef = resolveTableCellInnerRef(blockId);
@@ -2330,6 +2594,18 @@ function openBlockProps(blockId) {
 		if (isListType) {
 			ensureListRows(block);
 			renderPropsListRows(block);
+		}
+	}
+
+	const listMarkerSection = document.getElementById('propsListMarkerSection');
+	if (listMarkerSection) {
+		const hasMarker = block.type === 'list-02';
+		listMarkerSection.style.display = hasMarker ? '' : 'none';
+		if (hasMarker) {
+			const currentType = block.listMarkerType || 'alpha';
+			document.querySelectorAll('#propListMarkerType .props-seg-btn').forEach(btn => {
+				btn.classList.toggle('is-active', btn.dataset.marker === currentType);
+			});
 		}
 	}
 
@@ -2810,6 +3086,17 @@ function initBlockPropsPanel() {
 
 	document.getElementById('propsAddRowTop')?.addEventListener('click', () => {
 		if (_propsBlockId) addListRowToBlock(_propsBlockId);
+	});
+
+	document.getElementById('propListMarkerType')?.addEventListener('click', function (e) {
+		const btn = e.target.closest('.props-seg-btn');
+		if (!btn || !_propsBlockId) return;
+		const block = resolveEditableBlockData(_propsBlockId);
+		if (!block) return;
+		pushHistory();
+		block.listMarkerType = btn.dataset.marker;
+		this.querySelectorAll('.props-seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+		render();
 	});
 
 	document.getElementById('propLinkHref')?.addEventListener('change', function () {
@@ -4905,7 +5192,7 @@ function applyAllTemplateStyles() {
 }
 
 function syncCanvasPresence() {
-	const canvasBlockCount = state.blocks.filter(b => !b._isNlBodyBlock).length;
+	const canvasBlockCount = state.blocks.filter(b => !b._isNlBodyBlock && !b._slotParentId).length;
 	const hasBlocks = canvasBlockCount > 0;
 	const hasOverlays = state.overlays.length > 0;
 	layoutStatus.textContent = hasOverlays
@@ -4957,7 +5244,7 @@ function render() {
 	});
 	const { hasBlocks, hasOverlays } = syncCanvasPresence();
 	canvasGrid.className = hasBlocks ? 'canvas-grid' : 'canvas-grid is-empty';
-	const canvasVisibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock);
+	const canvasVisibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock && !b._slotParentId);
 	canvasGrid.innerHTML = hasBlocks
 		? canvasVisibleBlocks.map((block, idx) => renderBuilderBlock(block, idx, canvasVisibleBlocks.length)).join('')
 		: hasOverlays
@@ -5363,6 +5650,27 @@ function renderRepeatedColumns(block) {
 	return buildColumnBlock(template, block, true);
 }
 
+// 블록을 export용(비편집) HTML 문자열로 변환
+function _renderBlockExportHtml(block) {
+	const template = componentTemplates[block.type];
+	if (!template) return '';
+	if (templateCategories[block.type] === 'table') {
+		const item = block.items[0];
+		if (!item) return '';
+		const el = renderTableDynamically(block, item, 0, false);
+		stripEditorAttributes(el);
+		return elementToHtml(el);
+	}
+	if (templateCategories[block.type] === 'list' && block.items[0]?.rows) {
+		const item = block.items[0];
+		const el = renderListDynamically(block, item, 0, template.element, false);
+		stripEditorAttributes(el);
+		return elementToHtml(el);
+	}
+	const el = buildColumnBlock(template, block, false);
+	return el instanceof Element ? elementToHtml(el) : String(el);
+}
+
 function buildColumnBlock(template, block, editable) {
 	const outer = template.element.cloneNode(true);
 	Array.from(outer.attributes).forEach(attr => {
@@ -5479,6 +5787,7 @@ function buildColumnBlock(template, block, editable) {
 					if (editable) {
 						const innerBlockId = `${block.id}::inner::${idx}`;
 						const fakeBlock = { id: innerBlockId, type: ib.type, columns: ib.items.length || 1, items: ib.items,
+							listMarkerType: ib.listMarkerType || '',
 							...(block.type === 'button-00' && templateCategories[ib.type] === 'button' ? { btnSize: ib.btnSize || '', btnOpenType: ib.btnOpenType || 'default', btnIcon: ib.btnIcon || 'ri-external-link-line', btnIconPos: ib.btnIconPos || 'before' } : {}) };
 						const isListInner = templateCategories[ib.type] === 'list';
 						let innerHtml;
@@ -5493,10 +5802,13 @@ function buildColumnBlock(template, block, editable) {
 						} else {
 							innerHtml = buildColumnBlock(innerTemplate, fakeBlock, true);
 						}
-						const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
-						const propsHtml = isListInner
-							? `<button type="button" class="mix-inner-props inner-block-btn inner-block-btn--props" data-mix-inner-props-id="${innerBlockId}" title="행 관리" aria-label="행 관리"><i class="ri-list-settings-line"></i></button>`
-							: '';
+						const _ibStyles = [];
+						if (ib.marginTop) _ibStyles.push(`margin-top:${ib.marginTop}px`);
+						if (ib.marginBottom != null) _ibStyles.push(`margin-bottom:${ib.marginBottom}px`);
+						if (ib.marginLeft) _ibStyles.push(`margin-left:${ib.marginLeft}px`);
+						if (ib.marginRight) _ibStyles.push(`margin-right:${ib.marginRight}px`);
+						const mbStyle = _ibStyles.length ? ` style="${_ibStyles.join(';')}"` : '';
+						const propsHtml = `<button type="button" class="mix-inner-props inner-block-btn inner-block-btn--props" data-mix-inner-props-id="${innerBlockId}" title="속성" aria-label="속성"><i class="ri-settings-3-line"></i></button>`;
 						const removeHtml = `<button type="button" class="mix-inner-remove inner-block-btn inner-block-btn--remove" data-mix-block-id="${block.id}" data-mix-inner-idx="${idx}" aria-label="내부 블록 제거"><i class="ri-close-line"></i></button>`;
 						return `<div class="mix-inner-item" draggable="true" data-mix-block-id="${block.id}" data-mix-inner-idx="${idx}"${mbStyle}>
 							<div class="mix-inner-drag-handle" title="드래그해서 순서 변경"><i class="ri-draggable"></i></div>
@@ -5505,6 +5817,7 @@ function buildColumnBlock(template, block, editable) {
 						</div>`;
 					} else {
 						const fakeBlock = { id: `${block.id}-inner-${idx}`, type: ib.type, columns: ib.items.length || 1, items: ib.items,
+							listMarkerType: ib.listMarkerType || '',
 							...(block.type === 'button-00' && templateCategories[ib.type] === 'button' ? { btnSize: ib.btnSize || '', btnOpenType: ib.btnOpenType || 'default', btnIcon: ib.btnIcon || 'ri-external-link-line', btnIconPos: ib.btnIconPos || 'before' } : {}) };
 						const isListInner = templateCategories[ib.type] === 'list';
 						let innerContent;
@@ -5516,7 +5829,12 @@ function buildColumnBlock(template, block, editable) {
 							const innerEl = buildColumnBlock(innerTemplate, fakeBlock, false);
 							innerContent = elementToHtml(innerEl);
 						}
-						const mbStyle = ib.marginBottom != null ? ` style="margin-bottom:${ib.marginBottom}px"` : '';
+						const _ibExStyles = [];
+						if (ib.marginTop) _ibExStyles.push(`margin-top:${ib.marginTop}px`);
+						if (ib.marginBottom != null) _ibExStyles.push(`margin-bottom:${ib.marginBottom}px`);
+						if (ib.marginLeft) _ibExStyles.push(`margin-left:${ib.marginLeft}px`);
+						if (ib.marginRight) _ibExStyles.push(`margin-right:${ib.marginRight}px`);
+						const mbStyle = _ibExStyles.length ? ` style="${_ibExStyles.join(';')}"` : '';
 						return `<div class="mix-inner-item"${mbStyle}>${innerContent}</div>`;
 					}
 				}).join('');
@@ -5800,6 +6118,41 @@ function buildColumnBlock(template, block, editable) {
 				cntnts.innerHTML = rawContent ? formatMultiline(rawContent) : '내용이 없습니다.';
 			}
 		}
+	}
+
+	// 슬롯 자식 블록 주입: _slotParentId === block.id 인 블록을 data-edit-field 영역에 삽입
+	const slotChildren = block ? state.blocks.filter(b => b._slotParentId === block.id && b._slotField) : [];
+	if (slotChildren.length > 0) {
+		const byField = {};
+		slotChildren.forEach(sc => {
+			if (!byField[sc._slotField]) byField[sc._slotField] = [];
+			byField[sc._slotField].push(sc);
+		});
+		Object.entries(byField).forEach(([field, children]) => {
+			const fieldEl = outer.querySelector(`[data-edit-field="${field}"]`);
+			if (!fieldEl) return;
+			fieldEl.innerHTML = '';
+			fieldEl.removeAttribute('contenteditable');
+			if (editable) fieldEl.removeAttribute('data-edit-field'); // 편집 핸들러 충돌 방지
+			children.forEach(child => {
+				const wrapper = document.createElement('div');
+				wrapper.className = 'nl-block-insert nl-body-block-wrap';
+				if (editable) {
+					wrapper.dataset.nlBodyBlockId = child.id;
+					const mbPx = child.marginBottom ?? 0;
+					if (child.marginTop) wrapper.style.marginTop = child.marginTop + 'px';
+					wrapper.style.marginBottom = mbPx + 'px';
+					const ctrlHtml = _innerBlockActionsHtml(
+						`<button type="button" class="inner-block-btn inner-block-btn--props" data-nl-body-props-id="${child.id}" title="속성" aria-hidden="true"><i class="ri-settings-3-line"></i></button>`,
+						`<button type="button" class="inner-block-btn inner-block-btn--remove" data-nl-body-delete-id="${child.id}" title="삭제" aria-hidden="true"><i class="ri-delete-bin-line"></i></button>`
+					);
+					wrapper.innerHTML = ctrlHtml + renderRepeatedColumns(child);
+				} else {
+					wrapper.innerHTML = _renderBlockExportHtml(child);
+				}
+				fieldEl.appendChild(wrapper);
+			});
+		});
 	}
 
 	if (!editable) stripEditorAttributes(outer);
@@ -6606,14 +6959,14 @@ function bindRenderedEvents() {
 		});
 	});
 
-	// 가정통신문 본문 영역: 디자인 블록 드래그 드롭
+	// 가정통신문 본문 영역: dragover 시각 피드백만 담당 (실제 drop은 handleBlockDrop에서 처리)
 	document.querySelectorAll('.nl-content-area[data-edit-field="body"]').forEach(bodyArea => {
 		bodyArea.addEventListener('dragover', event => {
 			if (document.body.classList.contains('preview-mode')) return;
 			const payload = state.dragPayload;
-			if (!payload.startsWith('new-block:')) return;
+			if (!payload.startsWith('new-block:') && !payload.startsWith('existing-block:')) return;
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopPropagation(); // 부모 .builder-block의 드롭 인디케이터 방지
 			event.dataTransfer.dropEffect = 'copy';
 			bodyArea.classList.add('nl-body-drop-over');
 		});
@@ -6622,29 +6975,63 @@ function bindRenderedEvents() {
 				bodyArea.classList.remove('nl-body-drop-over');
 			}
 		});
-		bodyArea.addEventListener('drop', event => {
+	});
+
+	// 리스트 행 span: 블록 드래그-드롭으로 삽입
+	document.querySelectorAll('[data-list-row]').forEach(span => {
+		span.addEventListener('dragover', e => {
 			if (document.body.classList.contains('preview-mode')) return;
-			const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
-			if (!payload.startsWith('new-block:')) return;
-			event.preventDefault();
-			event.stopPropagation();
-			bodyArea.classList.remove('nl-body-drop-over');
+			const payload = state.dragPayload;
+			if (!payload.startsWith('new-block:') && !payload.startsWith('existing-block:')) return;
+			e.preventDefault();
+			e.stopPropagation();
+			e.dataTransfer.dropEffect = 'copy';
+			span.classList.add('list-row-drop-over');
+		});
+		span.addEventListener('dragleave', e => {
+			if (!span.contains(e.relatedTarget)) span.classList.remove('list-row-drop-over');
+		});
+		span.addEventListener('drop', e => {
+			if (document.body.classList.contains('preview-mode')) return;
+			const payload = state.dragPayload || e.dataTransfer.getData('text/plain');
+			const isNew = payload.startsWith('new-block:');
+			const isExisting = payload.startsWith('existing-block:');
+			if (!isNew && !isExisting) return;
+			e.preventDefault();
+			e.stopPropagation();
+			span.classList.remove('list-row-drop-over');
 			clearDropIndicators();
 			state.dragPayload = '';
-			const type = payload.replace('new-block:', '');
-			if (!componentTemplates[type]) return;
-			const builderBlock = bodyArea.closest('.builder-block');
-			if (!builderBlock) return;
-			const sectionBlockId = builderBlock.dataset.blockId;
-			if (!state.blocks.find(b => b.id === sectionBlockId)) return;
+			const rowKey = span.dataset.editField;
+			const listBlockId = span.dataset.blockId;
+			const listBlock = state.blocks.find(b => b.id === listBlockId);
+			if (!listBlock) return;
+			const row = _findListRow(listBlock, rowKey);
+			if (!row) return;
 			pushHistory();
-			const bodyBlock = createBlock(type);
-			bodyBlock._isNlBodyBlock = true;
-			bodyBlock._parentSectionId = sectionBlockId;
-			bodyBlock.marginBottom = 0;
-			state.blocks.push(bodyBlock);
+			// 기존 blockRef 가 있으면 블록 제거 후 교체
+			if (row.blockRef) {
+				state.blocks = state.blocks.filter(b => b.id !== row.blockRef);
+				delete row.blockRef;
+			}
+			if (isNew) {
+				const type = payload.replace('new-block:', '');
+				if (!componentTemplates[type]) return;
+				const child = createBlock(type);
+				child._slotParentId = listBlockId;
+				child._slotField = rowKey;
+				child.marginBottom = 0;
+				state.blocks.push(child);
+				row.blockRef = child.id;
+			} else {
+				const existingId = payload.replace('existing-block:', '');
+				const existing = state.blocks.find(b => b.id === existingId);
+				if (!existing) return;
+				existing._slotParentId = listBlockId;
+				existing._slotField = rowKey;
+				row.blockRef = existingId;
+			}
 			render();
-			openBlockProps(bodyBlock.id);
 		});
 	});
 
@@ -6656,12 +7043,27 @@ function bindRenderedEvents() {
 		});
 	});
 
-	// 가정통신문 본문 body 블록: 삭제 버튼 클릭
+	// 가정통신문 본문 body 블록 / 슬롯 자식 블록: 삭제 버튼 클릭
 	document.querySelectorAll('[data-nl-body-delete-id]').forEach(btn => {
 		btn.addEventListener('click', e => {
 			e.stopPropagation();
 			const id = btn.dataset.nlBodyDeleteId;
 			pushHistory();
+			// 리스트 row.blockRef 정리: 삭제 대상이 list row에 삽입된 블록이면 row 참조 제거
+			const dying = state.blocks.find(b => b.id === id);
+			if (dying && dying._slotParentId) {
+				const parent = state.blocks.find(b => b.id === dying._slotParentId);
+				if (parent && templateCategories[parent.type] === 'list') {
+					const item = parent.items[0];
+					if (item && item.rows) {
+						const clearRef = (rows) => rows.forEach(row => {
+							if (row.blockRef === id) delete row.blockRef;
+							if (row.children?.length) clearRef(row.children);
+						});
+						clearRef(item.rows);
+					}
+				}
+			}
 			state.blocks = state.blocks.filter(b => b.id !== id);
 			if (_propsBlockId === id) closeBlockProps();
 			render();
@@ -7264,6 +7666,43 @@ function handleCanvasDrop(event) {
 function handleBlockDrop(event) {
 	if (document.body.classList.contains('preview-mode')) return;
 	const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
+
+	// 삽입된 블록 내부 드롭은 자체 핸들러에 위임
+	if (event.target.closest('.nl-body-block-wrap')) return;
+
+	// 가정통신문 본문 영역으로의 드롭 처리
+	const bodyArea = event.target.closest('.nl-content-area[data-edit-field="body"]');
+	if (bodyArea) {
+		const isNew = payload.startsWith('new-block:');
+		const isExisting = payload.startsWith('existing-block:');
+		if (isNew || isExisting) {
+			event.preventDefault();
+			event.stopPropagation();
+			bodyArea.classList.remove('nl-body-drop-over');
+			clearDropIndicators();
+			state.dragPayload = '';
+			const sectionBlockId = event.currentTarget.dataset.blockId;
+			if (!state.blocks.find(b => b.id === sectionBlockId)) return;
+			pushHistory();
+			if (isExisting) {
+				const existingBlock = state.blocks.find(b => b.id === payload.replace('existing-block:', ''));
+				if (!existingBlock) return;
+				existingBlock._isNlBodyBlock = true;
+				existingBlock._parentSectionId = sectionBlockId;
+			} else {
+				const type = payload.replace('new-block:', '');
+				if (!componentTemplates[type]) return;
+				const bodyBlock = createBlock(type);
+				bodyBlock._isNlBodyBlock = true;
+				bodyBlock._parentSectionId = sectionBlockId;
+				bodyBlock.marginBottom = 0;
+				state.blocks.push(bodyBlock);
+			}
+			render();
+			return;
+		}
+	}
+
 	if (payload.startsWith('new-inline:')) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -7441,7 +7880,7 @@ function _cleanBlockItem(el) {
 
 function _generateBlocksMarkup() {
 	const _sink = [];
-	const visibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock);
+	const visibleBlocks = state.blocks.filter(b => !b._isNlBodyBlock && !b._slotParentId);
 	const total = visibleBlocks.length;
 	const html = visibleBlocks.map((block, idx) => {
 		const template = componentTemplates[block.type];
@@ -8267,6 +8706,60 @@ async function init() {
 	});
 	const canvasWrapper = document.getElementById('canvasWrapper');
 	KlicBuilderShared.bindCanvasDropTargets({ canvasGrid, canvasWrapper, onDragOver: handleCanvasDragOver, onDrop: handleCanvasDrop });
+
+	// 가정통신문 본문 영역 드롭 전용 캡처 핸들러
+	// stopImmediatePropagation: 같은 노드(canvasGrid)의 handleCanvasDrop(bubble)까지 차단
+	canvasGrid.addEventListener('dragover', event => {
+		if (document.body.classList.contains('preview-mode')) return;
+		if (event.target.closest('[data-list-row]')) return; // 리스트 행 span: 자체 핸들러에 위임
+		if (event.target.closest('.nl-body-block-wrap')) return; // 삽입된 블록 내부: 자체 핸들러에 위임
+		const bodyArea = event.target.closest('.nl-content-area[data-edit-field="body"]');
+		if (!bodyArea) return;
+		const payload = state.dragPayload;
+		if (!payload.startsWith('new-block:') && !payload.startsWith('existing-block:')) return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		event.dataTransfer.dropEffect = 'copy';
+		bodyArea.classList.add('nl-body-drop-over');
+	}, true);
+
+	canvasGrid.addEventListener('drop', event => {
+		if (document.body.classList.contains('preview-mode')) return;
+		if (event.target.closest('[data-list-row]')) return; // 리스트 행 span: 자체 핸들러에 위임
+		if (event.target.closest('.nl-body-block-wrap')) return; // 삽입된 블록 내부: 자체 핸들러에 위임
+		const bodyArea = event.target.closest('.nl-content-area[data-edit-field="body"]');
+		if (!bodyArea) return;
+		const payload = state.dragPayload || event.dataTransfer.getData('text/plain');
+		const isNew = payload.startsWith('new-block:');
+		const isExisting = payload.startsWith('existing-block:');
+		if (!isNew && !isExisting) return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		bodyArea.classList.remove('nl-body-drop-over');
+		clearDropIndicators();
+		state.dragPayload = '';
+		const builderBlock = bodyArea.closest('.builder-block');
+		if (!builderBlock) return;
+		const sectionBlockId = builderBlock.dataset.blockId;
+		if (!state.blocks.find(b => b.id === sectionBlockId)) return;
+		pushHistory();
+		if (isExisting) {
+			const existingBlock = state.blocks.find(b => b.id === payload.replace('existing-block:', ''));
+			if (!existingBlock) return;
+			existingBlock._isNlBodyBlock = true;
+			existingBlock._parentSectionId = sectionBlockId;
+		} else {
+			const type = payload.replace('new-block:', '');
+			if (!componentTemplates[type]) return;
+			const bodyBlock = createBlock(type);
+			bodyBlock._isNlBodyBlock = true;
+			bodyBlock._parentSectionId = sectionBlockId;
+			bodyBlock.marginBottom = 0;
+			state.blocks.push(bodyBlock);
+		}
+		render();
+	}, true);
+
 	_listEditButtons = createListEditButtons();
 	initThemeSwitcher();
 	initGuidedTour();

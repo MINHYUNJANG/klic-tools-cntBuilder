@@ -1,4 +1,38 @@
 {
   "addDirection": "column",
-  "templateFilters": ["newsletter"]
+  "templateFilters": ["newsletter"],
+  "initialBodyBlocks": [
+    {
+      "type": "text-01",
+      "marginBottom": 10,
+      "data": { "body": "안녕하세요?<br>아래와 같이 안내드립니다." }
+    },
+    {
+      "type": "list-01",
+      "listRows": [
+        "소제목",
+        {
+          "text": "소제목",
+          "children": [
+            "소제목의 내용입니다.",
+            {
+              "text": "소제목의 내용입니다.",
+              "blockDef": {
+                "type": "table-01",
+                "colCount": 3,
+                "initialTableData": {
+                  "colWidths": ["20%", "35%", "45%"],
+                  "thead": [["일자", "시간", "내용"]],
+                  "tbody": [
+                    [{"text": "6/22<br>월", "rowspan": 2, "tag": "th"}, "17:20 ~ 18:20", "인사"],
+                    [null, "18:20 ~ 20:20", "휴식"]
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
